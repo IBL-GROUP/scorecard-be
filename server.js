@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./config/database.js";
 import { config } from "./config/config.js";
-import apiRoutes from "./routes/api.js";
+import apiRoutes, { listApiEndpoints } from "./routes/api.js";
 
 dotenv.config();
 
@@ -24,19 +24,14 @@ app.use((req, res, next) => {
 // Root route - API info
 app.get("/", (req, res) => {
   res.json({
-    name: "Distribution Metrics Backend API",
+    name: "SupplyChain Pulse (Scorecard) Backend API",
     version: "1.0.0",
     status: "running",
     timestamp: new Date().toISOString(),
     environment: config.server.env,
     endpoints: {
       health: "/health",
-      api: {
-        productData: "/api/product-data",
-        salesSummary: "/api/sales-summary",
-        dailySalesAvg: "/api/daily-sales-avg",
-        mtdSalesDetail: "/api/mtd-sales-detail",
-      },
+      api: listApiEndpoints("/api"),
     },
   });
 });

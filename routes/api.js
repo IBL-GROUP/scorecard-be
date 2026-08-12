@@ -18,22 +18,51 @@ import totalSku from './routes.total.sku.js';
 
 const router = express.Router();
 
-//Mount routers
-router.use('/sales-summary', salesSummary);
-router.use('/cover-days', coverDays);
-router.use('/forecast-accuracy-monthly', forcastAccuracyMonthly);
-router.use('/forecast-accuracy-yearly', forcastAccuracyYearly);
-router.use('/inventory-days', inventoryDays);
-router.use('/above-below-threshold', aboveBelowThreshold);
-router.use('/forecast-accuracy-category-monthly', forcastAccuracyCategoryMonthly);
-router.use('/forecast-accuracy-category-yearly', forcastAccuracyCategoryYearly);
-router.use('/ibl-vs-tscl', iblVsTscl);
-router.use('/service-measure', serviceMeasure);
-router.use('/tgt-vs-actual', tgtVsActual);
-router.use('/wip', wip);
-router.use('/rpm', rpm);
-router.use('/dispatch-vs-order', dispatchVsOrder);
-router.use('/filters', filters);
-router.use('/total-sku', totalSku);
-    
+// Single source of truth for the mounted API groups. Used both to mount the
+// routers and to advertise every endpoint on the root route, so the two can
+// never drift apart.
+const routeGroups = [
+  { path: '/sales-summary', router: salesSummary },
+  { path: '/cover-days', router: coverDays },
+  { path: '/forecast-accuracy-monthly', router: forcastAccuracyMonthly },
+  { path: '/forecast-accuracy-yearly', router: forcastAccuracyYearly },
+  { path: '/forecast-accuracy-category-monthly', router: forcastAccuracyCategoryMonthly },
+  { path: '/forecast-accuracy-category-yearly', router: forcastAccuracyCategoryYearly },
+  { path: '/inventory-days', router: inventoryDays },
+  { path: '/above-below-threshold', router: aboveBelowThreshold },
+  { path: '/ibl-vs-tscl', router: iblVsTscl },
+  { path: '/service-measure', router: serviceMeasure },
+  { path: '/tgt-vs-actual', router: tgtVsActual },
+  { path: '/wip', router: wip },
+  { path: '/rpm', router: rpm },
+  { path: '/dispatch-vs-order', router: dispatchVsOrder },
+  { path: '/filters', router: filters },
+  { path: '/total-sku', router: totalSku },
+];
+
+// Mount routers
+for (const { path, router: groupRouter } of routeGroups) {
+  router.use(path, groupRouter);
+}
+
+export function listApiEndpoints(base = '/api') {
+  const endpoints = {};
+  for (const { path, router: groupRouter } of routeGroups) {
+    const group = path.replace(/^\//, '');
+    const items = [];
+    for (const layer of groupRouter.stack) {
+      if (!layer.route) continue;
+      const sub = layer.route.path === '/' ? '' : layer.route.path;
+      const methods = Object.keys(layer.route.methods)
+        .filter((m) => layer.route.methods[m])
+        .map((m) => m.toUpperCase());
+      for (const method of methods) {
+        items.push(`${method} ${base}${path}${sub}`);
+      }
+    }
+    endpoints[group] = items;
+  }
+  return endpoints;
+}
+
 export default router;
