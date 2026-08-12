@@ -2,7 +2,7 @@ name: scorecard-be
 
 services:
   app:
-    image: iblcloud/searle-scorecard-be:1.0.0
+    image: iblgroup/searle-scorecard-be:1.0.0
     container_name: searle-scorecard-be
     restart: unless-stopped
     build:
@@ -11,6 +11,6 @@ services:
     env_file:
       - .env.docker
     ports:
-      - "3014:3014"
+      - "3005:3005"
     volumes:
       - ./logs:/app/logs

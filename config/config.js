@@ -41,7 +41,7 @@ export const config = {
     },
   },
   server: {
-    port: parseInteger(process.env.PORT, 3014),
+    port: parseInteger(process.env.PORT, 3005),
     env: process.env.NODE_ENV || 'development',
   },
   query: {
