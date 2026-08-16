@@ -15,6 +15,7 @@ import dispatchVsOrder from './routes.dispatch.vs.order.js';
 import tgtVsActual from './routes.tgt.vs.actual.js';
 import filters from './routes.filters.js';
 import totalSku from './routes.total.sku.js';
+import rdStatus from './routes.rd.status.js';
 
 const router = express.Router();
 
@@ -38,6 +39,7 @@ const routeGroups = [
   { path: '/dispatch-vs-order', router: dispatchVsOrder },
   { path: '/filters', router: filters },
   { path: '/total-sku', router: totalSku },
+  { path: '/rd-status', router: rdStatus },
 ];
 
 // Mount routers

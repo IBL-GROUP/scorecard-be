@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./config/database.js";
+import { testSecondaryConnection } from "./config/database.secondary.js";
 import { config } from "./config/config.js";
 import apiRoutes, { listApiEndpoints } from "./routes/api.js";
 
@@ -83,6 +84,10 @@ const startServer = async () => {
       console.log("4. Run: npm start\n");
       process.exit(1);
     }
+
+    // Secondary database (RD stock). Optional — a failure here is logged but
+    // does not stop the server; only the RD Status endpoints depend on it.
+    await testSecondaryConnection();
 
     app.listen(PORT, () => {
       console.log("\n🚀 Server is running!");
