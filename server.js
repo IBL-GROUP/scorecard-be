@@ -5,7 +5,6 @@ import { testConnection } from "./config/database.js";
 import { testSecondaryConnection } from "./config/database.secondary.js";
 import { config } from "./config/config.js";
 import apiRoutes, { listApiEndpoints } from "./routes/api.js";
-import { authenticate } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -48,9 +47,7 @@ app.get("/health", (req, res) => {
 });
 
 // API routes
-// Every /api route requires a valid authenticator session. "/" and "/health"
-// stay open so uptime checks and the compose healthcheck keep working.
-app.use("/api", authenticate, apiRoutes);
+app.use("/api", apiRoutes);
 
 // 404 handler
 app.use((req, res) => {
