@@ -1,7 +1,7 @@
 {
-  "name": "distribution-report-backend",
+  "name": "scorecard-backend",
   "version": "1.0.0",
-  "description": "Backend server for Distribution Report with PostgreSQL and Sequelize",
+  "description": "Backend server for SupplyChain Pulse (Scorecard) with PostgreSQL and Sequelize",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
     "moment": "^2.30.1",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",

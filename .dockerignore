@@ -2,6 +2,10 @@ node_modules
 npm-debug.log
 .env
 .env.local
+# Every env variant. Supplied at runtime via compose `env_file:`, so baking them
+# in would publish DB_PASSWORD and JWT_ACCESS_SECRET inside the image.
+.env.*
+*.env
 .env.*.local
 .git
 .gitignore

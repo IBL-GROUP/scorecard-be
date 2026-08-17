@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { testConnection } from "./config/database.js";
+import { testSecondaryConnection } from "./config/database.secondary.js";
 import { config } from "./config/config.js";
-import apiRoutes from "./routes/api.js";
+import apiRoutes, { listApiEndpoints } from "./routes/api.js";
+import { authenticate } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -24,19 +26,14 @@ app.use((req, res, next) => {
 // Root route - API info
 app.get("/", (req, res) => {
   res.json({
-    name: "Distribution Metrics Backend API",
+    name: "SupplyChain Pulse (Scorecard) Backend API",
     version: "1.0.0",
     status: "running",
     timestamp: new Date().toISOString(),
     environment: config.server.env,
     endpoints: {
       health: "/health",
-      api: {
-        productData: "/api/product-data",
-        salesSummary: "/api/sales-summary",
-        dailySalesAvg: "/api/daily-sales-avg",
-        mtdSalesDetail: "/api/mtd-sales-detail",
-      },
+      api: listApiEndpoints("/api"),
     },
   });
 });
@@ -51,7 +48,9 @@ app.get("/health", (req, res) => {
 });
 
 // API routes
-app.use("/api", apiRoutes);
+// Every /api route requires a valid authenticator session. "/" and "/health"
+// stay open so uptime checks and the compose healthcheck keep working.
+app.use("/api", authenticate, apiRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -88,6 +87,10 @@ const startServer = async () => {
       console.log("4. Run: npm start\n");
       process.exit(1);
     }
+
+    // Secondary database (RD stock). Optional — a failure here is logged but
+    // does not stop the server; only the RD Status endpoints depend on it.
+    await testSecondaryConnection();
 
     app.listen(PORT, () => {
       console.log("\n🚀 Server is running!");
