@@ -14,55 +14,70 @@ router.get("/", async (req, res) => {
     } = req.query;
 
     const sql = `
-      WITH sale AS (
+      WITH date_range AS (
           SELECT
-              SUM(a.sold_qty * COALESCE(b."SALE E.F.P", 0)) AS amount,
-              0           AS target_value
+              :startDate::date AS cur_start,
+              (:endDate::date - INTERVAL '1 day')::date AS cur_end,
+              DATE_TRUNC('month', :endDate::date)::date AS month_start
+      ),
+      -- The budget of the selected month and nothing else: on a June date this
+      -- is June's target, on July it is July's. No falling back to the previous
+      -- month — a month with no target loaded reports 0 rather than borrowing
+      -- an earlier figure and reading as if a target had been set.
+      --
+      -- target_date is always the first of its month, so the equality holds.
+      -- Ungrouped on purpose: with no matching rows this still returns one row
+      -- (NULL, coalesced to 0), and the final CROSS JOIN keeps its result.
+      budget AS (
+          SELECT COALESCE(SUM(a.value), 0) AS target_value
+          FROM mv_tscl_budget a
+          CROSS JOIN date_range d
+          WHERE a.target_date = d.month_start
+      ),
+      current_sales AS (
+          SELECT
+              a.item_code,
+              SUM(a.sold_qty) AS cur_qty
           FROM vw_mv_tscl_data_ a
-          LEFT JOIN LATERAL (
-              SELECT efp."SALE E.F.P"
-              FROM tscl_efp efp
-              WHERE efp.item_code = a.item_code
-                AND DATE_TRUNC('month', efp.first_date::date) IN (
-                    DATE_TRUNC('month', CAST(:endDate AS date)),
-                    DATE_TRUNC('month', CAST(:endDate AS date) - INTERVAL '1 month')
-                )
-              ORDER BY CASE
-                  WHEN DATE_TRUNC('month', efp.first_date::date) = DATE_TRUNC('month', CAST(:endDate AS date))
-                       AND COALESCE(efp."SALE E.F.P", 0) <> 0 THEN 0
-                  WHEN DATE_TRUNC('month', efp.first_date::date) = DATE_TRUNC('month', CAST(:endDate AS date) - INTERVAL '1 month') THEN 1
-                  WHEN DATE_TRUNC('month', efp.first_date::date) = DATE_TRUNC('month', CAST(:endDate AS date)) THEN 2
-                  ELSE 3
-              END,
-              efp.first_date DESC
-              LIMIT 1
-          ) b ON TRUE
-          WHERE a.billing_date BETWEEN :startDate AND :endDate
-          ${classification ? `AND a.classification::text IN (:classification)` : ""}
-          ${sku ? `AND a.item_code::text IN (:sku)` : ""}
-          ${branch ? `AND a.branch_id::text IN (:branch)` : ""}
-          GROUP BY a.classification
-          UNION ALL
+          CROSS JOIN date_range d
+          WHERE a.billing_date BETWEEN d.cur_start AND d.cur_end
+                      ${classification ? `AND a.classification::text IN (:classification)` : ""}
+                  ${sku ? `AND a.item_code::text IN (:sku)` : ""}
+                  ${branch ? `AND a.branch_id::text IN (:branch)` : ""}
+          GROUP BY a.item_code
+      ),
+      efp_latest AS (
+          SELECT item_code, efp_price
+          FROM (
+              SELECT
+                  b.item_code,
+                  b."SALE E.F.P" AS efp_price,
+                  ROW_NUMBER() OVER (PARTITION BY b.item_code ORDER BY b.first_date DESC) AS rn
+              FROM tscl_efp b
+              CROSS JOIN date_range d
+              WHERE b.first_date::date < d.cur_end
+                ${classification ? `AND b.classification::text IN (:classification)` : ""}
+                ${sku ? `AND b.item_code::text IN (:sku)` : ""}
+                ${branch ? `AND b.branch_id::text IN (:branch)` : ""}
+          ) t
+          WHERE rn = 1
+      ),
+      efp_sales AS (
           SELECT
-              0                   AS amount,
-              SUM(value)   AS target_value
-          FROM mv_tscl_budget b
-          WHERE b.target_date::date BETWEEN :startDate AND :endDate
-          ${classification ? `AND b.classification::text IN (:classification)` : ""}
-          ${sku ? `AND b.item_code::text IN (:sku)` : ""}
+              SUM(cs.cur_qty * COALESCE(el.efp_price, 0)) AS amount
+          FROM current_sales cs
+          LEFT OUTER JOIN efp_latest el ON el.item_code = cs.item_code
       )
       SELECT
-          SUM(amount)                                 AS amount,
-          SUM(target_value)                           AS target_value,
+          e.amount,
+          b.target_value,
           CASE
-              WHEN SUM(amount)       <> 0
-              AND SUM(target_value) <> 0
-              THEN ROUND(
-                      (SUM(amount) / SUM(target_value))::numeric
-                  , 2)
+              WHEN e.amount <> 0 AND b.target_value <> 0
+              THEN ROUND((e.amount / b.target_value)::numeric, 2)
               ELSE 0
           END AS pct
-      FROM sale a;
+      FROM efp_sales e
+      CROSS JOIN budget b;
     `;
 
     const replacements = { startDate, endDate };
