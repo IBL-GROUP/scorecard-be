@@ -16,6 +16,7 @@ import tgtVsActual from './routes.tgt.vs.actual.js';
 import filters from './routes.filters.js';
 import totalSku from './routes.total.sku.js';
 import rdStatus from './routes.rd.status.js';
+import me from './routes.me.js';
 
 const router = express.Router();
 
@@ -40,6 +41,8 @@ const routeGroups = [
   { path: '/filters', router: filters },
   { path: '/total-sku', router: totalSku },
   { path: '/rd-status', router: rdStatus },
+  // Who the caller is, and what their roles entitle them to.
+  { path: '/me', router: me },
 ];
 
 // Mount routers

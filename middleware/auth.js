@@ -44,7 +44,10 @@ export function authenticate(req, res, next) {
     }
 
     req.user = {
-      user_id: Number(payload.sub),
+      // Left as a string: the identity is user_login.user_login_id, a uuid.
+      // Number() on a uuid is NaN, and every lookup keyed on it would then
+      // fail on invalid input syntax rather than simply not matching.
+      user_id: String(payload.sub),
       user_name: payload.user_name,
       email_id: payload.email_id,
     };
