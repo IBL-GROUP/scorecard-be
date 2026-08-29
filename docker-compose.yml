@@ -10,7 +10,9 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env.docker
+    # Host nginx (HTTPS) is the only public entry; bind localhost so ports are
+    # not reachable from the network.
     ports:
-      - "3005:3005"
+      - "127.0.0.1:3005:3005"
     volumes:
       - ./logs:/app/logs

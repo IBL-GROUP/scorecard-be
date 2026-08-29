@@ -13,7 +13,13 @@ const app = express();
 const PORT = config.server.port;
 
 // Middleware
-app.use(cors());
+// Single FE origin behind host nginx; Bearer auth — no credentials.
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "https://dev.onethunder.iblgrp.com",
+    credentials: false,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
