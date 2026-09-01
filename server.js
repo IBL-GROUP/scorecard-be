@@ -12,11 +12,32 @@ dotenv.config();
 const app = express();
 const PORT = config.server.port;
 
+/** Comma-separated CORS_ORIGIN (local Vite may use several ports). */
+function corsOriginOption() {
+  const raw = process.env.CORS_ORIGIN || "https://dev.onethunder.iblgrp.com";
+  const allowed = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (allowed.length <= 1) {
+    return allowed[0] || false;
+  }
+
+  return (origin, callback) => {
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  };
+}
+
 // Middleware
-// Single FE origin behind host nginx; Bearer auth — no credentials.
+// Bearer auth — no credentials.
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "https://dev.onethunder.iblgrp.com",
+    origin: corsOriginOption(),
     credentials: false,
   })
 );
