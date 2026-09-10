@@ -2,14 +2,15 @@ import express from "express";
 import db from "../models/index.js";
 
 const router = express.Router();
-// ${sku ? 'AND t01.sap_mapping_code::text IN (:sku)' : ''}
-// ${classification ? 'AND t01.classification::text IN (:classification)' : ''}
+
 router.get("/", async (req, res) => {
   try {
     const { classification, sku } = req.query;
     const sql = `
-      select t01.classification ,count(*) from dist_metric_prod_mapping t01
-      group by t01.classification;
+      select vic.classification, count(vic.mapping_code)::int as count
+      from vw_items_class vic
+      group by vic.classification
+      order by vic.classification;
     `;
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];
