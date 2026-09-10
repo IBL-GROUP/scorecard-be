@@ -1,6 +1,7 @@
 import express from 'express';
 import salesSummary from './routes.sales.summary.js';
 import coverDays from './routes.cover.days.js';
+import coverDaysBenchmark from './routes.cover.days.benchmark.js';
 import forcastAccuracyMonthly from './routes.forcast.accuracy.monthly.js';
 import forcastAccuracyYearly from './routes.forcast.accuracy.yearly.js';
 import inventoryDays from './routes.inventory.days.js';
@@ -25,6 +26,7 @@ const router = express.Router();
 const routeGroups = [
   { path: '/sales-summary', router: salesSummary },
   { path: '/cover-days', router: coverDays },
+  { path: '/cover-days-benchmark', router: coverDaysBenchmark },
   { path: '/forecast-accuracy-monthly', router: forcastAccuracyMonthly },
   { path: '/forecast-accuracy-yearly', router: forcastAccuracyYearly },
   { path: '/forecast-accuracy-category-monthly', router: forcastAccuracyCategoryMonthly },
