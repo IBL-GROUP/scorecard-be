@@ -36,8 +36,13 @@ router.get("/", async (req, res) => {
 router.get("/branches", async (req, res) => {
   try {
     const { classification, sku } = req.query;
+    // The Branches filter: hub branches from mv_scoreboard_hub_mapping, with
+    // 8210 and 8206 left out for now. One row per storage location, so a hub
+    // branch repeats — the filter bar dedupes by hub_branch_code.
     const sql = `
-      select * from mv_branch_locations;
+      select *
+      from mv_scoreboard_hub_mapping mshm
+      where mshm.hub_branch_code not in ('8210', '8206');
     `;
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];

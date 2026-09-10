@@ -36,9 +36,9 @@ router.get("/", async (req, res) => {
                 SELECT MAX(stock_opening_date)
                 FROM daily_stock_movement_history d
                 WHERE d.stock_opening_date BETWEEN '2026-04-01' AND '2026-04-30'
-                AND d.busline_code IN ('P07','P08','P12')
+                AND d.busline_code IN ('P07','P08','P12','P01','P35')
             )
-            AND dsmh.busline_code IN ('P07','P08','P12')
+            AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
             AND (dsmh.subinventory_code LIKE '80%' OR dsmh.subinventory_code = '8206' OR dsmh.subinventory_code = '8210')
             ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
             ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
@@ -77,6 +77,16 @@ router.get("/", async (req, res) => {
             SELECT EXTRACT(DAY FROM (
                 DATE_TRUNC('month', :endDate::date) + INTERVAL '1 month - 1 day'
             ))::int AS total_days_in_month
+        ),
+        -- The threshold in force at the end of the window, per class, from
+        -- cover_days (versioned by effective_date) — the same figures the
+        -- Inventory Days Threshold card shows. 0 means none is set.
+        thresholds AS (
+            SELECT DISTINCT ON (cd.classification)
+                   cd.classification, NULLIF(cd.threshold, 0) AS threshold
+            FROM cover_days cd
+            WHERE cd.effective_date <= CAST(:endDate AS date)
+            ORDER BY cd.classification, cd.effective_date DESC
         ),
         aggregated AS (
             SELECT
@@ -119,17 +129,19 @@ router.get("/", async (req, res) => {
         ),
         totals AS (
             SELECT
-                branch_code,
-                branch_desc,
-                classification,
-                COUNT(DISTINCT mapping_code) AS total_sku,
+                cdd.branch_code,
+                cdd.branch_desc,
+                cdd.classification,
+                COUNT(DISTINCT cdd.mapping_code) AS total_sku,
+                -- Above the class's threshold from cover_days (A, B, C and N
+                -- alike); a class with none set counts nothing above it.
                 COUNT(DISTINCT CASE
-                    WHEN classification = 'A' AND COALESCE(cover_days, 0) > 30 AND COALESCE(cover_days, 0) < 9999 THEN mapping_code
-                    WHEN classification = 'B' AND COALESCE(cover_days, 0) > 20 AND COALESCE(cover_days, 0) < 9999 THEN mapping_code
-                    WHEN classification = 'C' AND COALESCE(cover_days, 0) > 15 AND COALESCE(cover_days, 0) < 9999 THEN mapping_code
+                    WHEN COALESCE(cdd.cover_days, 0) > th.threshold
+                     AND COALESCE(cdd.cover_days, 0) < 9999 THEN cdd.mapping_code
                 END) AS sku_above_threshold
-            FROM cover_days_detail
-            GROUP BY branch_code, branch_desc, classification
+            FROM cover_days_detail cdd
+            LEFT JOIN thresholds th ON th.classification = cdd.classification
+            GROUP BY cdd.branch_code, cdd.branch_desc, cdd.classification
         )
         SELECT
             t.branch_desc                               AS branch,
@@ -141,7 +153,10 @@ router.get("/", async (req, res) => {
             END)                                        AS "SKU-B%",
             MAX(CASE WHEN classification = 'C' THEN
                 ROUND(sku_above_threshold::numeric / NULLIF(total_sku::numeric, 0) * 100, 2)
-            END)                                        AS "SKU-C%"
+            END)                                        AS "SKU-C%",
+            MAX(CASE WHEN classification = 'N' THEN
+                ROUND(sku_above_threshold::numeric / NULLIF(total_sku::numeric, 0) * 100, 2)
+            END)                                        AS "SKU-N%"
         FROM totals t
         WHERE t.branch_code::TEXT IN ('8006','8018','8019','8023','8028','8029','8035','8044','8046','8056','8059','8070','8072','8085')
         GROUP BY t.branch_code, t.branch_desc

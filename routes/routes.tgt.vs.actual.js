@@ -22,7 +22,7 @@ WITH stk AS (
     LEFT OUTER JOIN vw_items_class  dmpm
         ON dmpm.mapping_code::TEXT =
            CASE
-               WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::int)::TEXT
+               WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::bigint)::TEXT  -- bigint: codes like 9019000091 overflow int
                ELSE dsmh.item_code
            END
     LEFT OUTER JOIN sales_inv_locations sil ON sil.inv_sloc::TEXT = subinventory_code
@@ -30,9 +30,9 @@ WITH stk AS (
               SELECT MAX(stock_closing_date)
               FROM daily_stock_movement_history d
               WHERE d.stock_closing_date BETWEEN :startDate AND :endDate
-              AND d.busline_code IN ('P07','P08','P12')
+              AND d.busline_code IN ('P07','P08','P12','P01','P35')
           )
-    AND dsmh.busline_code IN ('P07','P08','P12')
+    AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
     AND (dsmh.subinventory_code LIKE '80%' or dsmh.subinventory_code = '8206' or  dsmh.subinventory_code = '8210')
     ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
     ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
@@ -57,6 +57,14 @@ filtered_targets AS (
 --    AND t01.loc_code = '8028'
     group by  t03.classification
 ),
+-- The threshold in force at the end of the window, per class. cover_days is
+-- versioned by effective_date, so a past month keeps the threshold it had.
+cover_days_benchmark AS (
+    SELECT DISTINCT ON (cd.classification) cd.classification, cd.threshold
+    FROM cover_days cd
+    WHERE cd.effective_date <= CAST(:endDate AS date)
+    ORDER BY cd.classification, cd.effective_date DESC
+),
 days_calc AS (
     SELECT EXTRACT(DAY FROM (
         DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month - 1 day'
@@ -64,11 +72,7 @@ days_calc AS (
 )
 select
 	s.classification,
-    CASE
-        WHEN ft.classification = 'A' THEN 30
-        WHEN ft.classification = 'B' THEN 20
-        WHEN ft.classification = 'C' THEN 15
-    END                                                                 AS cover_days_tgt,
+    cdb.threshold                                                       AS cover_days_tgt,
     ROUND(
         CASE
             WHEN ABS(COALESCE(s.inv_val, 0)) < 0.001 THEN 0
@@ -81,8 +85,9 @@ select
     , 1)                                                                AS cover_days
 FROM filtered_targets ft
 LEFT JOIN stk s ON ft.classification = s.classification
+LEFT JOIN cover_days_benchmark cdb ON cdb.classification = ft.classification
 CROSS JOIN days_calc dc
-WHERE ft.classification IN ('A','B','C')
+WHERE ft.classification IN ('A','B','C','N')
 ORDER BY ft.classification;
     `;
 

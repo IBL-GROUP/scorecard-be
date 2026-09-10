@@ -20,7 +20,7 @@ router.get("/", async (req, res) => {
               mapping_code,
               COALESCE(classification, 'Others') AS classification
           FROM vw_items_class
-          where classification in ('A', 'B', 'C')
+          where classification in ('A', 'B', 'C', 'N')
       ),
       inv_value AS (
           SELECT
@@ -40,9 +40,9 @@ router.get("/", async (req, res) => {
               SELECT MAX(stock_opening_date)
               FROM daily_stock_movement_history d
               WHERE d.stock_opening_date BETWEEN :startDate AND :endDate
-              AND d.busline_code IN ('P07','P08','P12')
+              AND d.busline_code IN ('P07','P08','P12','P01','P35')
           )
-          AND dsmh.busline_code IN ('P07','P08','P12')
+          AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
           AND (
               dsmh.subinventory_code LIKE '80%'
               OR dsmh.subinventory_code = '8206'
@@ -80,6 +80,16 @@ router.get("/", async (req, res) => {
               DATE_TRUNC('month', :endDate::date) + INTERVAL '1 month - 1 day'
           ))::int AS total_days
       ),
+      -- The threshold in force at the end of the window, per class, from
+      -- cover_days (versioned by effective_date) — the same figures the
+      -- Inventory Days Threshold card shows. 0 means none is set.
+      thresholds AS (
+          SELECT DISTINCT ON (cd.classification)
+                 cd.classification, NULLIF(cd.threshold, 0) AS threshold
+          FROM cover_days cd
+          WHERE cd.effective_date <= CAST(:endDate AS date)
+          ORDER BY cd.classification, cd.effective_date DESC
+      ),
       sku_summary AS (
           SELECT
               sb.mapping_code,
@@ -96,16 +106,13 @@ router.get("/", async (req, res) => {
           CROSS JOIN days_calc dc
       )
       SELECT
-          classification,
-          COUNT(CASE WHEN classification = 'A' AND cover_days > 30  THEN 1
-                    WHEN classification = 'B' AND cover_days > 20  THEN 1
-                    WHEN classification = 'C' AND cover_days > 15  THEN 1 END) AS "No Of SKUs > Threshold",
-          COUNT(CASE WHEN classification = 'A' AND cover_days <= 30 THEN 1
-                    WHEN classification = 'B' AND cover_days <= 20 THEN 1
-                    WHEN classification = 'C' AND cover_days <= 15 THEN 1 END) AS "No Of SKUs < Threshold"
-      FROM sku_summary
-      GROUP BY classification
-      ORDER BY classification;
+          ss.classification,
+          COUNT(CASE WHEN ss.cover_days >  th.threshold THEN 1 END) AS "No Of SKUs > Threshold",
+          COUNT(CASE WHEN ss.cover_days <= th.threshold THEN 1 END) AS "No Of SKUs < Threshold"
+      FROM sku_summary ss
+      LEFT JOIN thresholds th ON th.classification = ss.classification
+      GROUP BY ss.classification
+      ORDER BY ss.classification;
     `;
 
     const replacements = { startDate, endDate };

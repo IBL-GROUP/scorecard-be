@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
             LEFT OUTER JOIN vw_items_class  dmpm
                 ON dmpm.mapping_code::TEXT =
                 CASE
-                    WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::int)::TEXT
+                    WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::bigint)::TEXT  -- bigint: codes like 9019000091 overflow int
                     ELSE dsmh.item_code
                 END
             LEFT OUTER JOIN sales_inv_locations sil ON sil.inv_sloc::TEXT = subinventory_code
@@ -32,9 +32,12 @@ router.get("/", async (req, res) => {
                     SELECT MAX(stock_closing_date)
                     FROM daily_stock_movement_history d
                     WHERE d.stock_closing_date BETWEEN :startDate AND :endDate
-                    AND d.busline_code IN ('P07','P08','P12')
+                    AND d.busline_code IN ('P07','P08','P12','P01','P35')
                 )
-            AND dsmh.busline_code IN ('P07','P08','P12')
+            AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
+            -- All five business lines count, classified or not — P01 / P35 included,
+            -- so their unclassified stock sits under "Others" and in the total.
+            AND (dsmh.busline_code IN ('P07','P08','P12','P01','P35') OR dmpm.mapping_code IS NOT NULL)
             AND (dsmh.subinventory_code LIKE '80%' or dsmh.subinventory_code = '8206' or  dsmh.subinventory_code = '8210')
             ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
             ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
@@ -147,7 +150,7 @@ WITH stk AS (
     LEFT OUTER JOIN vw_items_class  dmpm
         ON dmpm.mapping_code::TEXT =
            CASE
-               WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::int)::TEXT
+               WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::bigint)::TEXT  -- bigint: codes like 9019000091 overflow int
                ELSE dsmh.item_code
            END
     LEFT OUTER JOIN sales_inv_locations sil ON sil.inv_sloc::TEXT = subinventory_code
@@ -155,9 +158,12 @@ WITH stk AS (
             SELECT MAX(stock_closing_date)
             FROM daily_stock_movement_history d
             WHERE d.stock_closing_date BETWEEN :startDate AND :endDate
-            AND d.busline_code IN ('P07','P08','P12')
+            AND d.busline_code IN ('P07','P08','P12','P01','P35')
         )
-    AND dsmh.busline_code IN ('P07','P08','P12')
+    AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
+    -- All five business lines count, classified or not — P01 / P35 included,
+    -- so their unclassified stock sits under "Others" and in the total.
+    AND (dsmh.busline_code IN ('P07','P08','P12','P01','P35') OR dmpm.mapping_code IS NOT NULL)
     AND (dsmh.subinventory_code LIKE '80%' or dsmh.subinventory_code = '8206' or  dsmh.subinventory_code = '8210')
     ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
     ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
@@ -236,5 +242,44 @@ CROSS JOIN days_calc dc ;
   }
 });
 
+/**
+ * GET /cover-days/benchmarks — per classification, the Benchmark card's cover
+ * days (`days`) and the Inventory Days Threshold (`threshold`) in force on
+ * `endDate` (default: today).
+ *
+ * cover_days is versioned by effective_date: a change is a new row rather than
+ * an edit, so a past month keeps the benchmarks it was judged by. The latest
+ * row at or before the date wins per classification; a class with no row in
+ * force yet is simply absent, and the page shows "—" for it.
+ */
+router.get("/benchmarks", async (req, res) => {
+  try {
+    const requested = String(req.query.endDate ?? "").trim();
+    const asOf = /^\d{4}-\d{2}-\d{2}$/.test(requested)
+      ? requested
+      : new Date().toISOString().slice(0, 10);
+
+    const sql = `
+      SELECT DISTINCT ON (cd.classification)
+             cd.classification, cd.days, cd.threshold, cd.effective_date
+      FROM cover_days cd
+      WHERE cd.effective_date <= CAST(:asOf AS date)
+      ORDER BY cd.classification, cd.effective_date DESC;
+    `;
+
+    const results = await db.sequelize.query(sql, {
+      replacements: { asOf },
+      type: db.sequelize.QueryTypes.SELECT,
+    });
+    res.json({ success: true, count: results.length, as_of: asOf, data: results });
+  } catch (error) {
+    console.error("Error fetching cover days benchmarks:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching data",
+      error: error.message,
+    });
+  }
+});
 
 export default router;

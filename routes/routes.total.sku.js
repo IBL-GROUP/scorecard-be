@@ -7,9 +7,14 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const { classification, sku } = req.query;
+    // The Benchmark's "No. of SKUs", counted from vw_items_class — the
+    // classification every other card on the Summary page reads — so it
+    // includes N and agrees with the rest of the page. dist_metric_prod_mapping,
+    // used before, has no N and a different product list (A 13 / B 40 / C 175).
     const sql = `
-      select t01.classification ,count(*) from dist_metric_prod_mapping t01
-      group by t01.classification;
+      select vic.classification, count(vic.mapping_code) as count
+      from vw_items_class vic
+      group by vic.classification;
     `;
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];
