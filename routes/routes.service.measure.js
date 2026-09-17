@@ -23,7 +23,7 @@ router.get("/", async (req, res) => {
                 sil.inv_sloc                            AS branch_code,
                 REPLACE(sil.inv_sloc_desc, ' SELL', '') AS branch_desc,
                 SUM(dsmh.qty * dsmh.trade_price) AS inv_val
-            FROM daily_stock_movement_history dsmh
+            FROM vw_daily_stock_movement_history dsmh
             LEFT OUTER JOIN sap_items_detail sid
                 ON sid.matnr = dsmh.item_code
             LEFT OUTER JOIN vw_items_class dmpm                  
@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
                 ON sil.inv_sloc::TEXT = dsmh.subinventory_code
             WHERE dsmh.stock_opening_date = (
                 SELECT MAX(stock_opening_date)
-                FROM daily_stock_movement_history d
+                FROM vw_daily_stock_movement_history d
                 WHERE d.stock_opening_date BETWEEN '2026-04-01' AND '2026-04-30'
                 AND d.busline_code IN ('P07','P08','P12','P01','P35')
             )

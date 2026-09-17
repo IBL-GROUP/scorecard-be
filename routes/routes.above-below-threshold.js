@@ -22,12 +22,12 @@ router.get("/", async (req, res) => {
           FROM vw_items_class
           where classification in ('A', 'B', 'C', 'N')
       ),
-      inv_value AS (
+      inv_value AS MATERIALIZED (
           SELECT
               (CASE WHEN sid.mapping_code = '' OR sid.mapping_code IS NULL
                     THEN sid.matnr ELSE sid.mapping_code END) AS mapping_code,
               SUM(dsmh.qty * dsmh.trade_price) AS inv_val
-          FROM daily_stock_movement_history dsmh
+          FROM vw_daily_stock_movement_history dsmh
           LEFT OUTER JOIN sap_items_detail sid
               ON sid.matnr = dsmh.item_code
           LEFT OUTER JOIN vw_items_class dmpm
@@ -38,7 +38,7 @@ router.get("/", async (req, res) => {
               ON sil.inv_sloc::TEXT = dsmh.subinventory_code
           WHERE dsmh.stock_opening_date = (
               SELECT MAX(stock_opening_date)
-              FROM daily_stock_movement_history d
+              FROM vw_daily_stock_movement_history d
               WHERE d.stock_opening_date BETWEEN :startDate AND :endDate
               AND d.busline_code IN ('P07','P08','P12','P01','P35')
           )
@@ -55,7 +55,7 @@ router.get("/", async (req, res) => {
               (CASE WHEN sid.mapping_code = '' OR sid.mapping_code IS NULL
                     THEN sid.matnr ELSE sid.mapping_code END)
       ),
-      filtered_targets AS (
+      filtered_targets AS MATERIALIZED (
           SELECT
               (CASE WHEN sid.mapping_code = '' OR sid.mapping_code IS NULL  -- ✅ removed loc_code & classification
                     THEN sid.matnr ELSE sid.mapping_code END) AS mapping_code,

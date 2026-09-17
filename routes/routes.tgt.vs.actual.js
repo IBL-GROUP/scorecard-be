@@ -18,17 +18,17 @@ WITH stk AS (
     select
     dmpm.classification ,
         SUM(dsmh.qty * dsmh.trade_price)                                  AS inv_val
-    FROM daily_stock_movement_history dsmh
+    FROM vw_daily_stock_movement_history dsmh
     LEFT OUTER JOIN vw_items_class  dmpm
         ON dmpm.mapping_code::TEXT =
            CASE
-               WHEN item_code NOT LIKE 'F%' THEN (dsmh.item_code::bigint)::TEXT  -- bigint: codes like 9019000091 overflow int
+               WHEN dsmh.item_code ~ '^[0-9]+$' THEN (dsmh.item_code::bigint)::TEXT  -- numeric codes only: bigint drops leading zeros and holds codes like 9019000091. The view also yields mapped SAP codes ('137.430093.10.000'), which are not castable.
                ELSE dsmh.item_code
            END
     LEFT OUTER JOIN sales_inv_locations sil ON sil.inv_sloc::TEXT = subinventory_code
     WHERE dsmh.stock_closing_date = (
               SELECT MAX(stock_closing_date)
-              FROM daily_stock_movement_history d
+              FROM vw_daily_stock_movement_history d
               WHERE d.stock_closing_date BETWEEN :startDate AND :endDate
               AND d.busline_code IN ('P07','P08','P12','P01','P35')
           )

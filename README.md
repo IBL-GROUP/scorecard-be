@@ -102,7 +102,7 @@ Main tables and views:
 | `vw_mv_tscl_data_` | Sales facts (amount, quantity, classification, branch) |
 | `mv_tscl_spl_targets` | IBL targets (`target_date`, `loc_code`, `item_code`) |
 | `mv_tscl_budget`, `tscl_efp`, `tscl_sap_targets` | TSCL budget, EFP prices, SAP target materials |
-| `daily_stock_movement_history` | Closing stock per location and day |
+| `vw_daily_stock_movement_history` | Closing stock per location and day |
 | `cover_days` | Benchmark cover days and inventory-days threshold per classification, **versioned by `effective_date`** |
 | `vw_items_class`, `sap_items_detail` | SKU classification (A/B/C/N/Others) and item master |
 | `mv_scoreboard_hub_mapping` | Branch / hub mapping |
