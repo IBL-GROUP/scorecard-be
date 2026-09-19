@@ -31,7 +31,7 @@ generate-models` (sequelize-auto) exists, but nothing uses the generated models.
 
 ### Environment
 
-Read from `.env` locally, or `.env.docker` in Docker.
+Read from `.env` locally, or `.env.sandbox` in Docker.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -57,19 +57,19 @@ in the env files but are **not read** by the code.
 The image is `iblgroup/searle-scorecard-be:<tag>`. It runs as a non-root user
 with a `/health` `HEALTHCHECK`, and binds to `127.0.0.1:3005` behind the host
 nginx. `.dockerignore` excludes every `.env*` file, so configuration comes only
-from `.env.docker` on the server via Compose's `env_file`.
+from `.env.sandbox` on the server via Compose's `env_file`.
 
 ```bash
 # 1. Copy config to the server (first time, or when it changes)
 scp docker-compose.yml root@<server>:/root/searle-scorecard/be/
-scp .env.docker        root@<server>:/root/searle-scorecard/be/.env.docker
+scp .env.sandbox        root@<server>:/root/searle-scorecard/be/.env.sandbox
 
 # 2. Build and push
 docker build -t iblgroup/searle-scorecard-be:1.0.0 -f Dockerfile .
 docker push iblgroup/searle-scorecard-be:1.0.0
 
 # 3. On the server, from /root/searle-scorecard/be
-docker compose pull && docker compose up -d --force-recreate   # recreate so an edited .env.docker is re-read
+docker compose pull && docker compose up -d --force-recreate   # recreate so an edited .env.sandbox is re-read
 
 docker logs -f searle-scorecard-be
 ```
