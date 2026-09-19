@@ -2,14 +2,14 @@ name: scorecard-be
 
 services:
   app:
-    image: iblgroup/searle-scorecard-be:1.0.0
+    image: iblgroup/searle-scorecard-be:1.0.0-prod
     container_name: searle-scorecard-be
     restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env.sandbox
+      - .env.prod
     # Host nginx (HTTPS) is the only public entry; bind localhost so ports are
     # not reachable from the network.
     ports:
