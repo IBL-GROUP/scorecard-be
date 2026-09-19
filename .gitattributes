@@ -1,0 +1,7 @@
+.env.prod        merge=ours
+.env.sandbox     merge=ours
+docker-compose.yml merge=ours
+eas.json         merge=ours
+PROD-NOTES.md    merge=ours
+PROD-SETUP.md    merge=ours
+nginx-prod-host.conf merge=ours
