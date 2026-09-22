@@ -53,14 +53,14 @@ const IDENTITY_SQL = `
          e.employee_id, e.employee_code, e.employment_status,
          e.joining_date,
          o.organization_id, o.organization_code, o.organization_name
-    FROM organization.user_login ul
-    LEFT JOIN organization.application_user au
+    FROM user_login ul
+    LEFT JOIN application_user au
            ON au.application_user_id = ul.application_user_id
-    LEFT JOIN organization.person p
+    LEFT JOIN person p
            ON p.person_id = COALESCE(au.person_id, ul.person_id)
-    LEFT JOIN organization.employee e
+    LEFT JOIN employee e
            ON e.employee_id = COALESCE(au.employee_id, ul.employee_id)
-    LEFT JOIN organization.organization o
+    LEFT JOIN organization o
            ON o.organization_id = COALESCE(e.home_organization_id,
                                            au.default_organization_id)
    WHERE ul.user_login_id = :userLoginId
@@ -69,8 +69,8 @@ const IDENTITY_SQL = `
 
 /** Roles and permissions both hang off application_user, never off person. */
 const ASSIGNED_ROLES = `
-    FROM organization.user_role_assignment ura
-    JOIN organization.app_role r
+    FROM user_role_assignment ura
+    JOIN app_role r
          ON r.role_id = ura.role_id
         AND r.is_active
 `;
@@ -94,10 +94,10 @@ const PERMISSIONS_SQL = `
          p.module_code, p.resource_code, p.section_code, p.section_name,
          p.action_code, p.sensitivity_level
   ${ASSIGNED_ROLES}
-    JOIN organization.role_permission rp
+    JOIN role_permission rp
          ON rp.role_id = r.role_id
         AND rp.access_decision = 'ALLOW'
-    JOIN organization.permission p
+    JOIN permission p
          ON p.permission_id = rp.permission_id
         AND p.is_active
   ${HELD_BY_CALLER}

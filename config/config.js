@@ -56,8 +56,13 @@ const buildDatabaseConfig = (prefix, { defaultSchema, fallbacks = {} } = {}) => 
   };
 };
 
+// `organization` leads because routes.me.js reads the access-model tables
+// (user_login, app_role, permission, …) unqualified. Those live in a different
+// schema per environment — `organization` on sandbox, `prod_organization` on
+// prod — so prod overrides this with DB_SCHEMA rather than carrying its own
+// build. The sales schema follows, unchanged.
 const primary = buildDatabaseConfig('DB', {
-  defaultSchema: 'primary_secondary_sales_schm,public',
+  defaultSchema: 'organization,primary_secondary_sales_schm,public',
 });
 
 // Second database — RD stock (franchise schema). Host/port default to the
