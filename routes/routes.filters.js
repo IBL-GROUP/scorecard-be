@@ -7,12 +7,17 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const { classification, sku } = req.query;
+    // The SKU / Classification / Division filters, from vw_items_class. Every
+    // column of the view is returned (division, team, brands, …), plus the three
+    // names the filter bar has always read: item_code, item_description and
+    // classification — so the response shape it depends on is unchanged.
+    // Every row is returned, mapping_code 0 included.
     const sql = `
-      select 
-      distinct material_code item_code,sid.matnr_desc item_description
-      ,coalesce(classif,'Others') classification
-      from tscl_sap_targets tst
-      left outer join sap_items_detail sid on sid.matnr =tst.material_code::text ;
+      select vic.*,
+             vic.mapping_code::text                  as item_code,
+             vic."PRD"                               as item_description,
+             coalesce(vic.classification, 'Others') as classification
+      from vw_items_class vic order by vic."PRD";
     `;
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];
