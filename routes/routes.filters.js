@@ -8,11 +8,7 @@ router.get("/", async (req, res) => {
   try {
     const { classification, sku } = req.query;
     const sql = `
-      select 
-      distinct material_code item_code,sid.matnr_desc item_description
-      ,coalesce(classif,'Others') classification
-      from tscl_sap_targets tst
-      left outer join sap_items_detail sid on sid.matnr =tst.material_code::text ;
+      select * from mv_item_list;
     `;
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];

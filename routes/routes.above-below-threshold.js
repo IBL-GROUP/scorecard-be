@@ -40,9 +40,9 @@ router.get("/", async (req, res) => {
               SELECT MAX(stock_opening_date)
               FROM daily_stock_movement_history d
               WHERE d.stock_opening_date BETWEEN :startDate AND :endDate
-              AND d.busline_code IN ('P07','P08','P12')
+              AND d.busline_code IN ('P07','P08','P12','P01','P35')
           )
-          AND dsmh.busline_code IN ('P07','P08','P12')
+          AND dsmh.busline_code IN ('P07','P08','P12','P01','P35')
           AND (
               dsmh.subinventory_code LIKE '80%'
               OR dsmh.subinventory_code = '8206'
