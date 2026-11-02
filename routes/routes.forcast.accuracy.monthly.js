@@ -74,7 +74,9 @@ router.get("/", async (req, res) => {
               0               AS amount,
               SUM(target_value) AS target_value
           FROM mv_tscl_spl_targets b
-          WHERE b.target_date >= DATE_TRUNC('month', CAST(:endDate AS date))
+          -- Every month the selected window touches, the same span the sales
+          -- above are summed over.
+          WHERE b.target_date >= DATE_TRUNC('month', CAST(:startDate AS date))
             AND b.target_date < DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month'
           ${classification ? `AND b.classification::text IN (:classification)` : ""}
           ${sku ? `AND b.item_code::text IN (:sku)` : ""}
@@ -85,7 +87,7 @@ router.get("/", async (req, res) => {
       SELECT
           SUM(amount)       AS amount,
           SUM(target_value) AS target_value,
-          SUM(amount)/SUM(target_value) as pct
+          SUM(amount)/NULLIF(SUM(target_value), 0) as pct
       FROM sale a;
     `;
 

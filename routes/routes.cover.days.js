@@ -43,7 +43,7 @@ router.get("/", async (req, res) => {
             ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
             ${branch ? `AND sil.inv_sloc::text IN (:branch)` : ""}
             AND qty <> 0
-            GROUP BY dmpm.classification
+            GROUP BY COALESCE(dmpm.classification, 'Others')
         ),
         filtered_targets AS (
             SELECT
@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
             ))::int AS total_days_in_month
         )
         SELECT
-            ft.classification,
+            s.classification,
             s.inv_val,
             s.inv_val_efp,
             ft.trg_value,
@@ -84,10 +84,10 @@ router.get("/", async (req, res) => {
                 END::numeric /
                 NULLIF(ft.trg_value::numeric / NULLIF(dc.total_days_in_month, 0), 0)
             , 1) AS cover_days_efp
-        FROM filtered_targets ft
-        LEFT JOIN stk s ON s.classification = ft.classification
+        FROM stk s
+        LEFT JOIN filtered_targets ft ON ft.classification = s.classification
         CROSS JOIN days_calc dc
-        ORDER BY ft.classification;
+        ORDER BY s.classification;
     `;
 
     const replacements = { startDate, endDate };
