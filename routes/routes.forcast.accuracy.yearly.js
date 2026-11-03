@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
       WITH date_range AS (
           SELECT
               :startDate::date AS cur_start,
-              (:endDate::date - INTERVAL '1 day')::date AS cur_end,
+              :endDate::date AS cur_end,
               DATE_TRUNC('month', :startDate::date)::date AS start_month,
               DATE_TRUNC('month', :endDate::date)::date AS end_month,
               LEAST(:endDate::date, CURRENT_DATE) AS elapsed_end
@@ -45,12 +45,14 @@ router.get("/", async (req, res) => {
                   / (m.month_end - a.target_date + 1)
               ), 0) AS target_to_date
           FROM mv_tscl_budget a
+          -- The class sales use, not the budget table's own: they disagree on some items.
+          LEFT OUTER JOIN vw_items_class vic ON vic.mapping_code::text = a.item_code::text
           CROSS JOIN date_range d
           CROSS JOIN LATERAL (
               SELECT (a.target_date + INTERVAL '1 month - 1 day')::date AS month_end
           ) m
           WHERE a.target_date BETWEEN d.start_month AND d.end_month
-          ${classification ? `AND a.classification::text IN (:classification)` : ""}
+          ${classification ? `AND COALESCE(vic.classification, 'Others')::text IN (:classification)` : ""}
           ${sku ? `AND a.item_code::text IN (:sku)` : ""}
       ),
       current_sales AS (
@@ -74,10 +76,7 @@ router.get("/", async (req, res) => {
                   ROW_NUMBER() OVER (PARTITION BY b.item_code ORDER BY b.first_date DESC) AS rn
               FROM tscl_efp b
               CROSS JOIN date_range d
-              WHERE b.first_date::date < d.cur_end
-                ${classification ? `AND b.classification::text IN (:classification)` : ""}
-                ${sku ? `AND b.item_code::text IN (:sku)` : ""}
-                ${branch ? `AND b.branch_id::text IN (:branch)` : ""}
+              WHERE b.first_date::date <= d.cur_end
           ) t
           WHERE rn = 1
       ),

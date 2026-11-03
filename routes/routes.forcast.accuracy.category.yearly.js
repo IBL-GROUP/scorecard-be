@@ -47,19 +47,20 @@ router.get("/", async (req, res) => {
     GROUP BY a.classification, DATE_TRUNC('month', a.billing_date)
     UNION ALL
     SELECT
-        COALESCE(b.classification, 'Others')        AS classification,
+        COALESCE(vic.classification, 'Others')      AS classification,
         DATE_TRUNC('month', b.target_date::date) AS month_date,
         TO_CHAR(DATE_TRUNC('month', b.target_date::date), 'FMMonth YYYY') AS month,
         0                   AS amount,
         SUM(value)   AS target_value
     FROM mv_tscl_budget b
+    LEFT OUTER JOIN vw_items_class vic ON vic.mapping_code::text = b.item_code::text
     WHERE b.target_date::date >= DATE_TRUNC('month', :endDate::date) - INTERVAL '2 months'
       AND b.target_date::date < DATE_TRUNC('month', :endDate::date) + INTERVAL '1 month'
-        ${classification ? `AND b.classification::text IN (:classification)` : ""}
+        ${classification ? `AND COALESCE(vic.classification, 'Others')::text IN (:classification)` : ""}
         ${sku ? `AND b.item_code::text IN (:sku)` : ""}
     --    AND b.item_code  = '1013000071'
     --    AND b.loc_code   = '8001'
-    GROUP BY COALESCE(b.classification, 'Others'), DATE_TRUNC('month', b.target_date::date)
+    GROUP BY COALESCE(vic.classification, 'Others'), DATE_TRUNC('month', b.target_date::date)
 )
 SELECT
     COALESCE(a.classification, 'Others')        AS classification,
