@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
             -- so their unclassified stock sits under "Others" and in the total.
             AND (dsmh.busline_code IN ('P07','P08','P12','P01','P35') OR dmpm.mapping_code IS NOT NULL)
             AND (dsmh.subinventory_code LIKE '80%' or dsmh.subinventory_code = '8206' or  dsmh.subinventory_code = '8210')
-            ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
+            ${classification ? `AND COALESCE(dmpm.classification, 'Others')::text IN (:classification)` : ""}
             ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
             ${branch ? `AND sil.inv_sloc::text IN (:branch)` : ""}
             AND qty <> 0
@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
             LEFT OUTER JOIN vw_items_class t03 ON t03.mapping_code::TEXT = t01.item_code::TEXT
             WHERE t01.target_date >= DATE_TRUNC('month', CAST(:endDate AS date))
             AND t01.target_date < DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month'
-            ${classification ? `AND t03.classification::text IN (:classification)` : ""}
+            ${classification ? `AND COALESCE(t03.classification, 'Others')::text IN (:classification)` : ""}
             ${sku ? `AND t03.mapping_code::text IN (:sku)` : ""}
             ${branch ? `AND t01.loc_code::text IN (:branch)` : ""}
             GROUP BY COALESCE(t03.classification, 'Others')
@@ -165,7 +165,7 @@ WITH stk AS (
     -- so their unclassified stock sits under "Others" and in the total.
     AND (dsmh.busline_code IN ('P07','P08','P12','P01','P35') OR dmpm.mapping_code IS NOT NULL)
     AND (dsmh.subinventory_code LIKE '80%' or dsmh.subinventory_code = '8206' or  dsmh.subinventory_code = '8210')
-    ${classification ? `AND dmpm.classification::text IN (:classification)` : ""}
+    ${classification ? `AND COALESCE(dmpm.classification, 'Others')::text IN (:classification)` : ""}
     ${sku ? `AND dmpm.mapping_code::text IN (:sku)` : ""}
     ${branch ? `AND sil.inv_sloc::text IN (:branch)` : ""}
 --    AND dsmh.item_code LIKE '%1013000025%'
@@ -179,7 +179,7 @@ filtered_targets AS (
     LEFT OUTER JOIN vw_items_class t03 ON t03.mapping_code::TEXT = t01.item_code::TEXT
     WHERE t01.target_date >= DATE_TRUNC('month', CAST(:endDate AS date))
       AND t01.target_date < DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month'
-    ${classification ? `AND t03.classification::text IN (:classification)` : ""}
+    ${classification ? `AND COALESCE(t03.classification, 'Others')::text IN (:classification)` : ""}
     ${sku ? `AND t03.mapping_code::text IN (:sku)` : ""}
     ${branch ? `AND t01.loc_code::text IN (:branch)` : ""}
 --    and t03.sap_code = '1013000025'

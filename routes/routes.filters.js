@@ -2,6 +2,62 @@ import express from "express";
 import db from "../models/index.js";
 
 const router = express.Router();
+
+/**
+ * The Others division, as the DSR dashboard has it: items whose SALES carry no
+ * division. Shaped like vw_items_class rows so the Division filter can offer
+ * Others and pick them by SKU, as it does for every other division.
+ *
+ * Twelve months back. The scan takes ~30s, so it runs once at startup and is
+ * kept for 12 hours; a request during a refresh waits for that same run.
+ */
+const UNMAPPED_ITEMS_SQL = `
+  SELECT TRIM(a.item_code::text)                                       AS mapping_code,
+         TRIM(a.item_code::text)                                       AS item_code,
+         COALESCE(NULLIF(TRIM(MAX(a.item_description::text)), ''),
+                  TRIM(a.item_code::text))                             AS item_description,
+         COALESCE(NULLIF(TRIM(MAX(a.item_description::text)), ''),
+                  TRIM(a.item_code::text))                             AS "PRD",
+         'Others'                                                      AS division,
+         COALESCE(NULLIF(TRIM(MAX(a.classification::text)), ''), 'Others') AS classification
+    FROM vw_mv_tscl_data_ a
+   WHERE a.billing_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months'
+     AND NULLIF(TRIM(a.item_code::text), '') IS NOT NULL
+     AND COALESCE(NULLIF(UPPER(TRIM(a.division::text)), 'OTHERS'), '') = ''
+   GROUP BY TRIM(a.item_code::text)
+   ORDER BY 3;
+`;
+const UNMAPPED_TTL_MS = 12 * 60 * 60 * 1000;
+let unmapped = { rows: null, at: 0, pending: null };
+
+function getUnmappedItems() {
+  const fresh = unmapped.rows && Date.now() - unmapped.at < UNMAPPED_TTL_MS;
+  if (fresh) return Promise.resolve(unmapped.rows);
+  if (!unmapped.pending) {
+    unmapped.pending = db.sequelize
+      .query(UNMAPPED_ITEMS_SQL, { type: db.sequelize.QueryTypes.SELECT })
+      .then((rows) => {
+        unmapped = { rows, at: Date.now(), pending: null };
+        console.log(`Cached ${rows.length} unmapped items for the Others division`);
+        return rows;
+      })
+      .catch((error) => {
+        unmapped.pending = null;
+        console.error("Error fetching unmapped items:", error);
+        // Keep serving the last list rather than dropping Others altogether.
+        return unmapped.rows ?? [];
+      });
+  }
+  return unmapped.pending;
+}
+void getUnmappedItems();
+
+// A division that is blank, null or any spelling of "others" is Others.
+const toDivision = (value) => {
+  const text = String(value ?? "").trim();
+  return !text || text.toUpperCase() === "OTHERS" ? "Others" : text;
+};
+
 // ${sku ? 'AND t01.sap_mapping_code::text IN (:sku)' : ''}
 // ${classification ? 'AND t01.classification::text IN (:classification)' : ''}
 router.get("/", async (req, res) => {
@@ -22,10 +78,26 @@ router.get("/", async (req, res) => {
     const replacements = {};
     if (classification) replacements.classification = Array.isArray(classification) ? classification : [classification];
     if (sku) replacements.sku = Array.isArray(sku) ? sku : [sku];
-    const results = await db.sequelize.query(sql, {
-      replacements,
-      type: db.sequelize.QueryTypes.SELECT,
-    });
+    const [mapped, unmappedRows] = await Promise.all([
+      db.sequelize.query(sql, {
+        replacements,
+        type: db.sequelize.QueryTypes.SELECT,
+      }),
+      getUnmappedItems(),
+    ]);
+    // An item sold with no division is Others even if vw_items_class names one,
+    // so it sits under Others alone rather than under both.
+    const othersCodes = new Set(unmappedRows.map((row) => row.item_code));
+    const mappedCodes = new Set(mapped.map((row) => String(row.item_code)));
+    const results = [
+      ...mapped.map((row) => ({
+        ...row,
+        division: othersCodes.has(String(row.item_code))
+          ? "Others"
+          : toDivision(row.division),
+      })),
+      ...unmappedRows.filter((row) => !mappedCodes.has(row.item_code)),
+    ];
     console.log(`Fetched ${results.length} records from filters`);
     res.json({ success: true, count: results.length, data: results });
   } catch (error) {

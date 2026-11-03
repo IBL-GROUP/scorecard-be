@@ -20,7 +20,7 @@ WITH ibl_target AS (
         SUM(target_value)              AS target_value
     FROM mv_tscl_spl_targets b
      WHERE DATE_TRUNC('month', b.target_date::date) = DATE_TRUNC('month', CAST(:endDate AS date))
-    ${classification ? `AND b.classification::text IN (:classification)` : ""}
+    ${classification ? `AND COALESCE(b.classification, 'Others')::text IN (:classification)` : ""}
     ${sku ? `AND b.item_code::text IN (:sku)` : ""}
     ${branch ? `AND b.loc_code::text IN (:branch)` : ""}
     and COALESCE(b.classification, 'Others')  = COALESCE(b.classification, 'Others')  
@@ -29,15 +29,15 @@ WITH ibl_target AS (
 ),
 tscl_target AS (
     SELECT
-        COALESCE(b.classification, 'Others') AS classification,
+        COALESCE(vic.classification, 'Others') AS classification,
         SUM(value)                           AS target_value
     FROM mv_tscl_budget b
+    LEFT OUTER JOIN vw_items_class vic ON vic.mapping_code::text = b.item_code::text
     WHERE DATE_TRUNC('month', b.target_date::date) = DATE_TRUNC('month', CAST(:endDate AS date))
-       ${classification ? `AND b.classification::text IN (:classification)` : ""}
+       ${classification ? `AND COALESCE(vic.classification, 'Others')::text IN (:classification)` : ""}
        ${sku ? `AND b.item_code::text IN (:sku)` : ""}
-       and COALESCE(b.classification, 'Others')  = COALESCE(b.classification, 'Others')  
 	 and  b.item_code = b.item_code
-    GROUP BY COALESCE(b.classification, 'Others')
+    GROUP BY COALESCE(vic.classification, 'Others')
 ),
 combined AS (
     SELECT

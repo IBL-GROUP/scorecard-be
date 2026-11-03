@@ -37,7 +37,7 @@ router.get("/", async (req, res) => {
     FROM mv_tscl_spl_targets b
     WHERE b.target_date::date >= DATE_TRUNC('month', :endDate::date) - INTERVAL '2 months'
       AND b.target_date::date < :endDate::date + INTERVAL '1 day'
-        ${classification ? `AND b.classification::text IN (:classification)` : ""}
+        ${classification ? `AND COALESCE(b.classification, 'Others')::text IN (:classification)` : ""}
         ${sku ? `AND b.item_code::text IN (:sku)` : ""}
         ${branch ? `AND b.loc_code::text IN (:branch)` : ""}
         and COALESCE(b.classification, 'Others')  = COALESCE(b.classification, 'Others')  

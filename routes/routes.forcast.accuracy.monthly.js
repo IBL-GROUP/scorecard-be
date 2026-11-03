@@ -19,7 +19,7 @@ router.get("/daysgone", async (req, res) => {
           SUM(target_value) AS target_value
       FROM mv_tscl_spl_targets b
       WHERE b.target_date::date BETWEEN :startDate AND :endDate
-      ${classification ? `AND b.classification::text IN (:classification)` : ""}
+      ${classification ? `AND COALESCE(b.classification, 'Others')::text IN (:classification)` : ""}
       ${sku ? `AND b.item_code::text IN (:sku)` : ""}
       ${branch ? `AND b.loc_code::text IN (:branch)` : ""}
       and COALESCE(b.classification, 'Others')  = COALESCE(b.classification, 'Others')
@@ -78,7 +78,7 @@ router.get("/", async (req, res) => {
           -- above are summed over.
           WHERE b.target_date >= DATE_TRUNC('month', CAST(:startDate AS date))
             AND b.target_date < DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month'
-          ${classification ? `AND b.classification::text IN (:classification)` : ""}
+          ${classification ? `AND COALESCE(b.classification, 'Others')::text IN (:classification)` : ""}
           ${sku ? `AND b.item_code::text IN (:sku)` : ""}
           ${branch ? `AND b.loc_code::text IN (:branch)` : ""}
           and COALESCE(b.classification, 'Others')  = COALESCE(b.classification, 'Others')  
