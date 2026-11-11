@@ -66,9 +66,7 @@ cover_days_benchmark AS (
     ORDER BY cd.classification, cd.effective_date DESC
 ),
 days_calc AS (
-    SELECT EXTRACT(DAY FROM (
-        DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month - 1 day'
-    ))::int AS total_days_in_month
+    SELECT 30 AS total_days_in_month  -- a month counts as 30 days, every month
 )
 select
 	s.classification,
