@@ -59,9 +59,7 @@ router.get("/", async (req, res) => {
             GROUP BY COALESCE(t03.classification, 'Others')
         ),
         days_calc AS (
-            SELECT EXTRACT(DAY FROM (
-                DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month - 1 day'
-            ))::int AS total_days_in_month
+            SELECT 30 AS total_days_in_month  -- a month counts as 30 days, every month
         )
         SELECT
             s.classification,
@@ -186,9 +184,7 @@ filtered_targets AS (
 --    AND t01.loc_code = '8028'
 ),
 days_calc AS (
-    SELECT EXTRACT(DAY FROM (
-        DATE_TRUNC('month', CAST(:endDate AS date)) + INTERVAL '1 month - 1 day'
-    ))::int AS total_days_in_month
+    SELECT 30 AS total_days_in_month  -- a month counts as 30 days, every month
 )
 select
     s.inv_val,

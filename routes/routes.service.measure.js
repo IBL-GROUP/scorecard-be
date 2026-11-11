@@ -74,9 +74,7 @@ router.get("/", async (req, res) => {
                     THEN sid.matnr ELSE sid.mapping_code END)
         ),
         days_calc AS (
-            SELECT EXTRACT(DAY FROM (
-                DATE_TRUNC('month', :endDate::date) + INTERVAL '1 month - 1 day'
-            ))::int AS total_days_in_month
+            SELECT 30 AS total_days_in_month  -- a month counts as 30 days, every month
         ),
         -- The threshold in force at the end of the window, per class, from
         -- cover_days (versioned by effective_date) — the same figures the
