@@ -54,11 +54,17 @@ test("TC-S5-12 a missing table is remembered for 5 minutes: no BigQuery job per 
 
 test("an awaited source can be named in SQL; a pending one cannot", () => {
   assert.match(T("sap_wip_data"), /vw_wip_sap_data`$/);
-  assert.throws(() => T("primary_secondary_stock"), (e) => e.code === "SOURCE_PENDING");
-  assert.throws(() => requireSources("primary_secondary_stock"), (e) => e.status === 503);
+  SOURCES.__test_pending = { table: null, status: "pending", note: "test" };
+  try {
+    assert.throws(() => T("__test_pending"), (e) => e.code === "SOURCE_PENDING");
+    assert.throws(() => requireSources("__test_pending"), (e) => e.status === 503);
+  } finally {
+    delete SOURCES.__test_pending;
+  }
 });
 
-test("sales_inv_locations is confirmed (EDW.hub_mapping); health lists only what is not ready", () => {
+test("hub_mapping and distributor stock are confirmed; health lists only what is not ready", () => {
   assert.match(T("sales_inv_locations"), /hub_mapping`$/);
-  assert.deepEqual(notReady().sort(), ["primary_secondary_stock", "sap_wip_data"]);
+  assert.match(T("primary_secondary_stock"), /vw_primaray_secondary_stock`$/);
+  assert.deepEqual(notReady(), ["sap_wip_data"]);
 });

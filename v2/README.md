@@ -49,9 +49,9 @@ so there is no data to restore (`TECHNICAL_DOCUMENT.md` §13).
 | `/cover-days/closing-inv`, `/cover-days/benchmarks`, `/above-below-threshold` | Live |
 | `/inventory-days`, `/service-measure` | Live (`sales_inv_locations` = `EDW.hub_mapping`, 12 Nov 2026) |
 | `/forecast-accuracy-monthly`, `/daysgone`, `/forecast-accuracy-yearly`, `/forecast-accuracy-category-monthly`, `/forecast-accuracy-category-yearly`, `/ibl-vs-tscl` | Live |
-| `/dispatch-vs-order`, `/rpm` | Live. `/rpm` totals are wrong while `vw_sap_tpkg_traw_data` is still being loaded (question F6) |
+| `/dispatch-vs-order`, `/rpm` | Live. `/rpm` keeps 1.0's rule (every row of the latest `executiondate`, the stock date per F6). The 11 Nov 2026 `executiondate` holds 134 `recorddate` snapshots, so the total is wrong until the data team corrects that load |
 | `/wip` | Ported. **503** until the data team creates `EDW.vw_wip_sap_data` (question F2); then it works with no change |
-| `/rd-status` | **503** until branch code and name are added to `EDW.vw_primaray_secondary_stock` (question F3) |
+| `/rd-status` | Live: `EDW.vw_primaray_secondary_stock`; branch = hub branch of the distributor's `SUBINVENTORY_CODE` in `hub_mapping` (F3, 12 Nov 2026) |
 
 A 503 looks like `{ success: false, code: "SOURCE_PENDING", message, pending: [...] }`.
 `/api/health` lists the sources not ready yet (pending, or awaiting a table).
@@ -92,7 +92,7 @@ route marked with the question number.
    1.0 probably fails the same way; confirm.
 3. "Today" (`/forecast-accuracy-yearly` target-to-date) uses `V2_TIMEZONE`
    (UTC). 1.0 used the PostgreSQL server's time zone.
-4. `tscl_efp.sales_efp` is read as 1.0's `"SALE E.F.P"` (question F4).
+4. `tscl_efp.sales_efp` is 1.0's `"SALE E.F.P"` (confirmed by the data team, F4, 12 Nov 2026).
 5. In `vw_sap_tpkg_traw_data` one `executiondate` can have several
    `recorddate` loads (e.g. 29 Jun 2026 has 5). `/rpm` sums every row of the
    latest `executiondate`, as 1.0 does, so such a day counts each load (question F6).

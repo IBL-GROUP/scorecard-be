@@ -2,8 +2,7 @@
 //   /wip                routes.wip.js            → ported; 503 until EDW.vw_wip_sap_data is created (question F2)
 //   /rpm                routes.rpm.js
 //   /dispatch-vs-order  routes.dispatch.vs.order.js
-//   /rd-status          routes.rd.status.js      → 503 until branch columns are added to
-//                                                  EDW.vw_primaray_secondary_stock (question F3)
+//   /rd-status          routes.rd.status.js      (branch from hub_mapping, F3)
 //
 // Known gaps are kept: GAP-005 (dispatch ignores branch; wip and rpm take dates
 // only), GAP-006 (rd-status ignores `date`).
@@ -128,11 +127,62 @@ get(dispatchVsOrder, "/", "dispatch-vs-order", async (q, label) => {
   return run(sql, { startDate: str(q.startDate), endDate: str(q.endDate), classification: f.classification, sku: f.sku }, label);
 });
 
-get(rdStatus, "/", "rd-status", async (q) => {
+/**
+ * 1.0 RD_STATUS_SQL on EDW.vw_primaray_secondary_stock (data team, Question 10
+ * and F3, 12 Nov 2026). Like 1.0's primary_secondary_stock it is a snapshot:
+ * one `dated` per distributor (checked). Column names: stock_qty → QTY,
+ * ibl_item_code → item_code.
+ *
+ * Branch: the view has no branch column. Each distributor row (data_flag 'SD')
+ * has one SUBINVENTORY_CODE, and every such code is in EDW.hub_mapping, so the
+ * branch is that storage location's hub branch (hub_branch_code /
+ * hub_branch_desc, the 14 branches): decided 12 Nov 2026 (F3).
+ *
+ * Kept from 1.0: `date` is validated but not used (GAP-006); "today" is the
+ * server's date (V2_TIMEZONE, default UTC), and asOf echoes it.
+ */
+get(rdStatus, "/", "rd-status", async (q, label) => {
   const { date } = q;
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
     throw Object.assign(new Error("Invalid `date` — expected YYYY-MM-DD"), { status: 400 });
   }
   requireSources("primary_secondary_stock");
-  return [];
+  const tz = process.env.V2_TIMEZONE || "UTC";
+  const sql = `
+    WITH data_ AS (
+      SELECT
+        pss.data_flag,
+        pss.dated,
+        CAST(pss.ibl_distributor_code AS STRING) AS ibl_distributor_code,
+        pss.distributor_desc,
+        hm.hub_branch_code AS branch_code,
+        hm.hub_branch_desc AS branch_desc,
+        SUM(pss.stock_value) AS stock_value,
+        SUM(pss.QTY) AS stock_qty
+      FROM ${T("primary_secondary_stock")} pss
+      INNER JOIN ${T("active_rds_list")} arl
+        ON CAST(arl.ibl_distributor_code AS STRING) = CAST(pss.ibl_distributor_code AS STRING)
+      LEFT OUTER JOIN ${T("sap_items_detail")} sid ON sid.matnr = pss.item_code
+      LEFT OUTER JOIN ${T("mv_scoreboard_hub_mapping")} hm
+        ON CAST(hm.storage_location_code AS STRING) = pss.SUBINVENTORY_CODE
+      WHERE pss.data_flag = 'SD'
+        AND sid.busline_id IN ('P07', 'P08', 'P12', 'P01', 'P35')
+      GROUP BY pss.data_flag, pss.ibl_distributor_code, pss.distributor_desc, hm.hub_branch_code, hm.hub_branch_desc, pss.dated
+    )
+    SELECT
+      ibl_distributor_code,
+      distributor_desc,
+      branch_code,
+      branch_desc,
+      CASE WHEN dated = CURRENT_DATE(@tz) THEN stock_qty ELSE 0 END AS stock_qty,
+      CASE WHEN dated = CURRENT_DATE(@tz) THEN stock_value ELSE 0 END AS stock_value,
+      CASE WHEN dated <> CURRENT_DATE(@tz) THEN stock_qty ELSE 0 END AS last_stock_qty,
+      CASE WHEN dated <> CURRENT_DATE(@tz) THEN stock_value ELSE 0 END AS last_stock_value,
+      CASE WHEN dated <> CURRENT_DATE(@tz) THEN CAST(dated AS STRING) ELSE NULL END AS last_stock_date,
+      CASE WHEN dated = CURRENT_DATE(@tz) THEN 0 ELSE DATE_DIFF(CURRENT_DATE(@tz), dated, DAY) END AS day_diff
+    FROM data_
+    ORDER BY dated DESC`;
+  const data = await run(sql, { tz }, label);
+  const asOf = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  return { asOf, data };
 });

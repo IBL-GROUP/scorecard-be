@@ -25,8 +25,8 @@ export const SOURCES = {
   vw_daily_stock_movement_history: { table: "vw_daily_stock_movement_history", status: "confirmed" },
   vw_items_class: { table: "vw_items_class", status: "same-name" },
   sap_items_detail: { table: "sap_items_detail", status: "same-name" },
-  // "SALE E.F.P" is read as sales_efp (question F4, not yet confirmed).
-  tscl_efp: { table: "tscl_efp", status: "same-name" },
+  // "SALE E.F.P" is read as sales_efp (data team, F4, 12 Nov 2026).
+  tscl_efp: { table: "tscl_efp", status: "confirmed" },
 
   // Data team, Question 7 (12 Nov 2026): EDW.hub_mapping. Read only through
   // sql.js#SIL, which gives 1.0's column names: storage_location_code → inv_sloc,
@@ -36,9 +36,10 @@ export const SOURCES = {
   // columns. Until it exists, BigQuery answers "Not found" and the route turns
   // that into 503 SOURCE_PENDING (awaitTable); once created, it is used as is.
   sap_wip_data: { table: "vw_wip_sap_data", status: "awaiting", note: "EDW.vw_wip_sap_data is not created yet (question F2)" },
-  // Data team, Question 10 (12 Nov 2026): branch code and name will be added to
-  // EDW.vw_primaray_secondary_stock. Column names not known yet (question F3).
-  primary_secondary_stock: { table: "vw_primaray_secondary_stock", status: "pending", note: "branch code and name not yet added to EDW.vw_primaray_secondary_stock (question F3)" },
+  // Data team, Question 10 / F3 (12 Nov 2026): EDW.vw_primaray_secondary_stock,
+  // with the branch taken from EDW.hub_mapping through SUBINVENTORY_CODE
+  // (hub branch, decided 12 Nov 2026). See routes/operations.js#rdStatus.
+  primary_secondary_stock: { table: "vw_primaray_secondary_stock", status: "confirmed" },
 };
 
 /** Sources not usable yet: "pending", plus "awaiting" tables that may not exist yet. */
