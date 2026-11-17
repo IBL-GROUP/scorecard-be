@@ -21,6 +21,24 @@ export function filters(q) {
   return { classification: list(q.classification), sku: list(q.sku), branch: list(q.branch) };
 }
 
+/**
+ * ?coverDays: the days the month's target is spread over when cover days are
+ * worked out (Supply Chain Pulse 2.0, FR-EXEC-047). Absent: null, and the
+ * queries use the days in the To month, as 1.0 does. Otherwise a whole number
+ * from 1 to 366; anything else is a 400.
+ */
+export function coverDaysParam(q) {
+  const v = Array.isArray(q.coverDays) ? q.coverDays[0] : q.coverDays;
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 366) {
+    const e = new Error("coverDays must be a whole number from 1 to 366");
+    e.status = 400;
+    throw e;
+  }
+  return n;
+}
+
 /** `AND <sqlExpr> IN UNNEST(@name)` when the list is non-empty, else "". */
 export const inList = (values, sqlExpr, name) => (values.length ? `AND CAST(${sqlExpr} AS STRING) IN UNNEST(@${name})` : "");
 

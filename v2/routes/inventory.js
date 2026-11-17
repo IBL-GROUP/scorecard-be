@@ -16,7 +16,7 @@
 // classification).
 import { run } from "../bq.js";
 import { T } from "../sources.js";
-import { filters, get, inList, newRouter, str } from "../http.js";
+import { coverDaysParam, filters, get, inList, newRouter, str } from "../http.js";
 import { BUSLINES, DAYS_IN_MONTH, DSMH_CODE, END_MONTH, NEXT_MONTH, SID_CODE, SIL, SLOC, latestStockDate, thresholdsInForce, vic } from "../sql.js";
 
 export const coverDays = newRouter();
@@ -25,7 +25,17 @@ export const aboveBelow = newRouter();
 export const serviceMeasure = newRouter();
 export const tgtVsActual = newRouter();
 
-const params = (q, f) => ({ startDate: str(q.startDate), endDate: str(q.endDate), ...f });
+/**
+ * Days the month's target is spread over (daily target = month target ÷ days):
+ * the days in the To month (1.0), or the dashboard's ?coverDays (FR-EXEC-047).
+ * @coverDays is only sent when set, so a query without it is 1.0's exactly.
+ */
+const daysOf = (q) => (coverDaysParam(q) == null ? DAYS_IN_MONTH : "@coverDays");
+
+const params = (q, f) => {
+  const coverDays = coverDaysParam(q);
+  return { startDate: str(q.startDate), endDate: str(q.endDate), ...f, ...(coverDays == null ? {} : { coverDays }) };
+};
 
 /** Closing-stock CTE body shared by /cover-days, /cover-days/total and /tgt-vs-actual. */
 const closingStock = (f, select, groupBy = "") => `
@@ -143,7 +153,7 @@ get(coverDays, "/", "cover-days", async (q, label) => {
       "GROUP BY 1",
     )}),
     filtered_targets AS (${monthTargets(f, "COALESCE(t03.classification, 'Others') AS classification, SUM(t01.target_value) AS trg_value", "GROUP BY 1")}),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days_in_month)
+    days_calc AS (SELECT ${daysOf(q)} AS total_days_in_month)
     SELECT s.classification, s.inv_val, s.inv_val_efp, ft.trg_value, s.quantity,
       ${coverDaysCols("s", "ft")}
     FROM stk s
@@ -168,7 +178,7 @@ get(coverDays, "/total", "cover-days/total", async (q, label) => {
        SUM(dsmh.qty) AS quantity`,
     )}),
     filtered_targets AS (${monthTargets(f, "SUM(t01.target_value) AS trg_value")}),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days_in_month)
+    days_calc AS (SELECT ${daysOf(q)} AS total_days_in_month)
     SELECT s.inv_val, ft.trg_value, s.quantity, s.inv_val_efp,
       ${coverDaysCols("s", "ft")}
     FROM stk s
@@ -191,7 +201,7 @@ get(inventoryDays, "/", "inventory-days", async (q, label) => {
   const sql = `
     WITH inv_value AS (${aprilStock(f, "2026-04-21")}),
     filtered_targets AS (${branchItemTargets(f)}),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days_in_month),
+    days_calc AS (SELECT ${daysOf(q)} AS total_days_in_month),
     aggregated AS (
       SELECT iv.classification, iv.PRD, iv.branch_code, iv.inv_val, ft.trg_value
       FROM inv_value iv
@@ -220,7 +230,7 @@ get(serviceMeasure, "/", "service-measure", async (q, label) => {
   const sql = `
     WITH inv_value AS (${aprilStock(f, "2026-04-30", "REPLACE(sil.inv_sloc_desc, ' SELL', '') AS branch_desc,", "sil.inv_sloc_desc,")}),
     filtered_targets AS (${branchItemTargets(f)}),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days_in_month),
+    days_calc AS (SELECT ${daysOf(q)} AS total_days_in_month),
     -- Threshold in force at endDate per class; 0 means none is set.
     thresholds AS (${thresholdsInForce(T("cover_days"), "cd.classification, NULLIF(cd.threshold, 0) AS threshold")}),
     aggregated AS (
@@ -294,7 +304,7 @@ get(aboveBelow, "/", "above-below-threshold", async (q, label) => {
         ${inList(f.branch, "t01.loc_code", "branch")}
       GROUP BY 1
     ),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days),
+    days_calc AS (SELECT ${daysOf(q)} AS total_days),
     thresholds AS (${thresholdsInForce(T("cover_days"), "cd.classification, NULLIF(cd.threshold, 0) AS threshold")}),
     sku_summary AS (
       SELECT sb.mapping_code, sb.classification,
@@ -322,7 +332,7 @@ get(tgtVsActual, "/", "tgt-vs-actual", async (q, label) => {
     WITH stk AS (${closingStock(f, "dmpm.classification, SUM(dsmh.qty * dsmh.trade_price) AS inv_val", "GROUP BY dmpm.classification")}),
     filtered_targets AS (${monthTargets(f, "t03.classification, SUM(t01.target_value) AS trg_value", "GROUP BY t03.classification")}),
     cover_days_benchmark AS (${thresholdsInForce(T("cover_days"), "cd.classification, cd.threshold")}),
-    days_calc AS (SELECT ${DAYS_IN_MONTH} AS total_days_in_month)
+    days_calc AS (SELECT ${daysOf(q)} AS total_days_in_month)
     SELECT s.classification,
            cdb.threshold AS cover_days_tgt,
            ROUND(

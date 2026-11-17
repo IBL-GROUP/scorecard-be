@@ -44,6 +44,29 @@ get(salesSummary, "/", "sales-summary", async (q, label) => {
   return run(sql, params(q, f), label);
 });
 
+/**
+ * /sales-summary/by-sales-type (Supply Chain Pulse 2.0, FR-EXEC-048): the same
+ * sales as /sales-summary (same window, filters and NOT NULL rules, so the parts
+ * add up to its total), split by the view's own sales type: 'Rd to trade',
+ * 'Ibl to trade', 'Pharma Healthcare to trade' (data_flag, as Sales Pulse 2.0
+ * reads it). A row without a type is 'Others'.
+ */
+get(salesSummary, "/by-sales-type", "sales-summary/by-sales-type", async (q, label) => {
+  const f = filters(q);
+  const sql = `
+    SELECT COALESCE(NULLIF(TRIM(a.data_flag), ''), 'Others') AS sales_type, SUM(a.amount) AS amount
+    FROM ${T("vw_mv_tscl_data_")} a
+    WHERE a.billing_date BETWEEN ${START} AND ${END}
+      ${inList(f.classification, "a.classification", "classification")}
+      ${inList(f.sku, "a.item_code", "sku")}
+      ${inList(f.branch, "a.branch_id", "branch")}
+      AND a.classification IS NOT NULL AND a.branch_id IS NOT NULL AND a.item_code IS NOT NULL
+    GROUP BY 1
+    HAVING SUM(a.amount) != 0
+    ORDER BY amount DESC`;
+  return run(sql, params(q, f), label);
+});
+
 /** Monthly targets (mv_tscl_spl_targets) with the 1.0 filters and NOT NULL predicates. */
 const targetFilters = (f, b = "b") => `
         ${inList(f.classification, `${b}.classification`, "classification")}
@@ -257,8 +280,47 @@ get(faCategoryYearly, "/", "forecast-accuracy-category-yearly", async (q, label)
   return run(sql, { endDate: str(q.endDate), ...f }, label);
 });
 
+/**
+ * ?groupBy=sku (Supply Chain Pulse 2.0 drill, FR-EXEC-049): the same two
+ * targets per SKU instead of per class. The TSCL budget is national (no
+ * branch), so only the IBL side follows ?branch, as in the per-class query
+ * (BR-MET-006). Rows are per item_code; the dashboard names them from /filters.
+ */
+const iblVsTsclBySku = (f) => `
+    WITH ibl_target AS (
+      SELECT CAST(b.item_code AS STRING) AS item_code, ANY_VALUE(COALESCE(b.classification, 'Others')) AS classification, SUM(b.target_value) AS target_value
+      FROM ${T("mv_tscl_spl_targets")} b
+      WHERE DATE_TRUNC(DATE(b.target_date), MONTH) = ${END_MONTH}
+        ${targetFilters(f)}
+      GROUP BY 1
+    ),
+    tscl_target AS (
+      SELECT CAST(b.item_code AS STRING) AS item_code, ANY_VALUE(COALESCE(b.classification, 'Others')) AS classification, SUM(b.value) AS target_value
+      FROM ${T("mv_tscl_budget")} b
+      WHERE DATE_TRUNC(DATE(b.target_date), MONTH) = ${END_MONTH}
+        ${inList(f.classification, "b.classification", "classification")}
+        ${inList(f.sku, "b.item_code", "sku")}
+        AND b.item_code IS NOT NULL
+      GROUP BY 1
+    )
+    SELECT COALESCE(i.item_code, t.item_code) AS item_code,
+           COALESCE(i.classification, t.classification, 'Others') AS classification,
+           COALESCE(i.target_value, 0) AS ibl_target,
+           COALESCE(t.target_value, 0) AS tscl_target,
+           CASE WHEN COALESCE(t.target_value, 0) <> 0 THEN ROUND(COALESCE(i.target_value, 0) / t.target_value * 100, 2) ELSE 0 END AS ibl_vs_tscl_pct
+    FROM ibl_target i
+    FULL OUTER JOIN tscl_target t ON i.item_code = t.item_code
+    ORDER BY item_code`;
+
 get(iblVsTscl, "/", "ibl-vs-tscl", async (q, label) => {
   const f = filters(q);
+  const groupBy = str(q.groupBy);
+  if (groupBy !== null && groupBy !== "sku") {
+    const e = new Error("groupBy must be sku");
+    e.status = 400;
+    throw e;
+  }
+  if (groupBy === "sku") return run(iblVsTsclBySku(f), { endDate: str(q.endDate), ...f }, label);
   const sql = `
     WITH ibl_target AS (
       SELECT COALESCE(b.classification, 'Others') AS classification, SUM(b.target_value) AS target_value
