@@ -1,5 +1,5 @@
 // Production, materials, dispatch and distributor endpoints, ported from:
-//   /wip                routes.wip.js            → ported; 503 until EDW.vw_wip_sap_data is created (question F2)
+//   /wip                routes.wip.js            (EDW.vw_sap_wip_data, F2)
 //   /rpm                routes.rpm.js
 //   /dispatch-vs-order  routes.dispatch.vs.order.js
 //   /rd-status          routes.rd.status.js      (branch from hub_mapping, F3)
@@ -7,7 +7,7 @@
 // Known gaps are kept: GAP-005 (dispatch ignores branch; wip and rpm take dates
 // only), GAP-006 (rd-status ignores `date`).
 import { run } from "../bq.js";
-import { T, awaitTable, requireSources } from "../sources.js";
+import { T, requireSources } from "../sources.js";
 import { filters, get, inList, newRouter, str } from "../http.js";
 
 /**
@@ -24,40 +24,39 @@ export const dispatchVsOrder = newRouter();
 export const rdStatus = newRouter();
 
 /**
- * 1.0 SQL on EDW.vw_wip_sap_data, which the data team will create with the old
- * columns (F2). Written before the view exists, so column types are unknown:
- * codes are compared as text and the record date is read with DATE(). Until the
- * view exists, BigQuery says "Not found" and this answers 503 (awaitTable).
+ * 1.0 SQL on EDW.vw_sap_wip_data (F2, 17 Nov 2026). plant and order_number are
+ * INT64 and storage_loc is FLOAT64 there; the contract (and 1.0) returns them
+ * as text, so they are cast. The record date is a TIMESTAMP, read with DATE().
  * Kept from 1.0: the join to vw_items_class reads no column (GAP-005: filters
  * are ignored), and the latest record_created_date in the window is used.
  */
-get(wip, "/", "wip", async (q, label) =>
-  awaitTable("sap_wip_data", async () => {
-    const W = T("sap_wip_data");
-    const sql = `
-      SELECT t01.storage_loc, t01.storage_loc_desc, t01.plant, t01.plnt_desc,
-             t01.material_type_description, t01.type_description AS material_name, t01.order_number,
-             t01.item_qty, t01.good_received_qty,
-             SUM(t01.wip_value) AS wip_value,
-             SUM(t01.wip) AS quantity
-      FROM ${W} t01
-      LEFT OUTER JOIN ${T("vw_items_class")} t02 ON CAST(t01.item_code AS STRING) = CAST(t02.mapping_code AS STRING)
-      WHERE t01.record_created_date = (
-        SELECT MAX(x.record_created_date) FROM ${W} x
-        WHERE DATE(x.record_created_date) BETWEEN CAST(@startDate AS DATE) AND CAST(@endDate AS DATE)
-      )
-      GROUP BY t01.type_description, t01.material_type_description, t01.storage_loc_desc,
-               t01.plnt_desc, t01.item_qty, t01.good_received_qty, t01.storage_loc, t01.plant, t01.order_number`;
-    const rows = await run(sql, { startDate: str(q.startDate), endDate: str(q.endDate) }, label);
-    // 1.0 column names contain spaces, which BigQuery aliases cannot.
-    return rows.map(({ material_name, wip_value, quantity, ...r }) => ({
-      ...r,
-      "Material Name": material_name,
-      "WIP Value": wip_value,
-      Quantity: quantity,
-    }));
-  }),
-);
+get(wip, "/", "wip", async (q, label) => {
+  const W = T("sap_wip_data");
+  const sql = `
+    SELECT CAST(CAST(t01.storage_loc AS INT64) AS STRING) AS storage_loc, t01.storage_loc_desc,
+           CAST(t01.plant AS STRING) AS plant, t01.plnt_desc,
+           t01.material_type_description, t01.type_description AS material_name,
+           CAST(t01.order_number AS STRING) AS order_number,
+           t01.item_qty, t01.good_received_qty,
+           SUM(t01.wip_value) AS wip_value,
+           SUM(t01.wip) AS quantity
+    FROM ${W} t01
+    LEFT OUTER JOIN ${T("vw_items_class")} t02 ON CAST(t01.item_code AS STRING) = CAST(t02.mapping_code AS STRING)
+    WHERE t01.record_created_date = (
+      SELECT MAX(x.record_created_date) FROM ${W} x
+      WHERE DATE(x.record_created_date) BETWEEN CAST(@startDate AS DATE) AND CAST(@endDate AS DATE)
+    )
+    GROUP BY t01.type_description, t01.material_type_description, t01.storage_loc_desc,
+             t01.plnt_desc, t01.item_qty, t01.good_received_qty, t01.storage_loc, t01.plant, t01.order_number`;
+  const rows = await run(sql, { startDate: str(q.startDate), endDate: str(q.endDate) }, label);
+  // 1.0 column names contain spaces, which BigQuery aliases cannot.
+  return rows.map(({ material_name, wip_value, quantity, ...r }) => ({
+    ...r,
+    "Material Name": material_name,
+    "WIP Value": wip_value,
+    Quantity: quantity,
+  }));
+});
 
 const VALUE_COLS = [
   ["valuatedgrblocked", "gr_blocked_val"],

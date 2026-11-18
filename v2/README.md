@@ -50,7 +50,7 @@ so there is no data to restore (`TECHNICAL_DOCUMENT.md` §13).
 | `/inventory-days`, `/service-measure` | Live (`sales_inv_locations` = `EDW.hub_mapping`, 12 Nov 2026) |
 | `/forecast-accuracy-monthly`, `/daysgone`, `/forecast-accuracy-yearly`, `/forecast-accuracy-category-monthly`, `/forecast-accuracy-category-yearly`, `/ibl-vs-tscl` | Live |
 | `/dispatch-vs-order`, `/rpm` | Live. `/rpm` keeps 1.0's rule (every row of the latest `executiondate`, the stock date per F6). The 11 Nov 2026 `executiondate` holds 134 `recorddate` snapshots, so the total is wrong until the data team corrects that load |
-| `/wip` | Ported. **503** until the data team creates `EDW.vw_wip_sap_data` (question F2); then it works with no change |
+| `/wip` | Live: `EDW.vw_sap_wip_data` (F2, 17 Nov 2026); latest `record_created_date` in the window, as 1.0 |
 | `/rd-status` | Live: `EDW.vw_primaray_secondary_stock`; branch = hub branch of the distributor's `SUBINVENTORY_CODE` in `hub_mapping` (F3, 12 Nov 2026) |
 
 A 503 looks like `{ success: false, code: "SOURCE_PENDING", message, pending: [...] }`.

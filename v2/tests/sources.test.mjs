@@ -53,7 +53,12 @@ test("TC-S5-12 a missing table is remembered for 5 minutes: no BigQuery job per 
 });
 
 test("an awaited source can be named in SQL; a pending one cannot", () => {
-  assert.match(T("sap_wip_data"), /vw_wip_sap_data`$/);
+  SOURCES.__test_awaiting = { table: "vw_test_awaiting", status: "awaiting", note: "test" };
+  try {
+    assert.match(T("__test_awaiting"), /vw_test_awaiting`$/);
+  } finally {
+    delete SOURCES.__test_awaiting;
+  }
   SOURCES.__test_pending = { table: null, status: "pending", note: "test" };
   try {
     assert.throws(() => T("__test_pending"), (e) => e.code === "SOURCE_PENDING");
@@ -66,5 +71,10 @@ test("an awaited source can be named in SQL; a pending one cannot", () => {
 test("hub_mapping and distributor stock are confirmed; health lists only what is not ready", () => {
   assert.match(T("sales_inv_locations"), /hub_mapping`$/);
   assert.match(T("primary_secondary_stock"), /vw_primaray_secondary_stock`$/);
-  assert.deepEqual(notReady(), ["sap_wip_data"]);
+  assert.deepEqual(notReady(), []);
+});
+
+test("WIP reads EDW.vw_sap_wip_data and is ready (F2, 17 Nov 2026)", () => {
+  assert.match(T("sap_wip_data"), /vw_sap_wip_data`$/);
+  assert.equal(SOURCES.sap_wip_data.status, "confirmed");
 });

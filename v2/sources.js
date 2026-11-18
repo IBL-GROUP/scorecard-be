@@ -32,10 +32,11 @@ export const SOURCES = {
   // sql.js#SIL, which gives 1.0's column names: storage_location_code → inv_sloc,
   // location → inv_sloc_desc. storage_location_code is unique there (checked).
   sales_inv_locations: { table: "hub_mapping", status: "confirmed" },
-  // Data team, F2 (12 Nov 2026): will be created under this name with the old
-  // columns. Until it exists, BigQuery answers "Not found" and the route turns
-  // that into 503 SOURCE_PENDING (awaitTable); once created, it is used as is.
-  sap_wip_data: { table: "vw_wip_sap_data", status: "awaiting", note: "EDW.vw_wip_sap_data is not created yet (question F2)" },
+  // F2 answered (user, 17 Nov 2026): the view is EDW.vw_sap_wip_data (not
+  // vw_wip_sap_data as first announced). Every column 1.0 reads is present
+  // (checked); plant, order_number (INT64) and storage_loc (FLOAT64) are cast
+  // to text in routes/operations.js#wip, as the contract and 1.0 return them.
+  sap_wip_data: { table: "vw_sap_wip_data", status: "confirmed" },
   // Data team, Question 10 / F3 (12 Nov 2026): EDW.vw_primaray_secondary_stock,
   // with the branch taken from EDW.hub_mapping through SUBINVENTORY_CODE
   // (hub branch, decided 12 Nov 2026). See routes/operations.js#rdStatus.
