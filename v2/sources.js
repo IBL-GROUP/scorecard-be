@@ -41,6 +41,10 @@ export const SOURCES = {
   // with the branch taken from EDW.hub_mapping through SUBINVENTORY_CODE
   // (hub branch, decided 12 Nov 2026). See routes/operations.js#rdStatus.
   primary_secondary_stock: { table: "vw_primaray_secondary_stock", status: "confirmed" },
+  // New in 2.0 (user, 19 Nov 2026), as in Sales Pulse 2.0: zone and region per
+  // branch, from cities mapped to branch codes. Read only through
+  // routes/filters.js#branchGeo.
+  zone_region: { table: "vw_zone_region_data", status: "confirmed" },
 };
 
 /** Sources not usable yet: "pending", plus "awaiting" tables that may not exist yet. */
