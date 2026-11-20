@@ -6,9 +6,9 @@
 //
 // Known gaps are kept: GAP-005 (dispatch ignores branch; wip and rpm take dates
 // only), GAP-006 (rd-status ignores `date`).
-import { run } from "../bq.js";
-import { T, requireSources } from "../sources.js";
-import { filters, get, inList, newRouter, str } from "../http.js";
+import { run } from "../lib/bq.js";
+import { T, requireSources } from "../lib/sources.js";
+import { filters, get, inList, newRouter, str } from "../lib/http.js";
 
 /**
  * The tables behind vw_sap_tpkg_traw_data (recorddate) and vw_dispatch_vs_order
@@ -138,7 +138,7 @@ get(dispatchVsOrder, "/", "dispatch-vs-order", async (q, label) => {
  * hub_branch_desc, the 14 branches): decided 12 Nov 2026 (F3).
  *
  * Kept from 1.0: `date` is validated but not used (GAP-006); "today" is the
- * server's date (V2_TIMEZONE, default UTC), and asOf echoes it.
+ * server's date (TIMEZONE, default UTC), and asOf echoes it.
  */
 get(rdStatus, "/", "rd-status", async (q, label) => {
   const { date } = q;
@@ -146,7 +146,7 @@ get(rdStatus, "/", "rd-status", async (q, label) => {
     throw Object.assign(new Error("Invalid `date` — expected YYYY-MM-DD"), { status: 400 });
   }
   requireSources("primary_secondary_stock");
-  const tz = process.env.V2_TIMEZONE || "UTC";
+  const tz = process.env.TIMEZONE || "UTC";
   const sql = `
     WITH data_ AS (
       SELECT

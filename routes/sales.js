@@ -10,10 +10,10 @@
 // budget accuracy stops the day before endDate; GAP-007: no date validation and
 // the March 2026 default on /forecast-accuracy-monthly). PostgreSQL's
 // `x = x` predicates, which drop NULLs, are written as `x IS NOT NULL`.
-import { run } from "../bq.js";
-import { T } from "../sources.js";
-import { filters, get, inList, newRouter, str } from "../http.js";
-import { END, END_MONTH, NEXT_MONTH, START, pgFmMonthLabel, pgMonthLabel } from "../sql.js";
+import { run } from "../lib/bq.js";
+import { T } from "../lib/sources.js";
+import { filters, get, inList, newRouter, str } from "../lib/http.js";
+import { END, END_MONTH, NEXT_MONTH, START, pgFmMonthLabel, pgMonthLabel } from "../lib/sql.js";
 
 export const salesSummary = newRouter();
 export const faMonthly = newRouter();
@@ -171,7 +171,7 @@ get(faYearly, "/", "forecast-accuracy-yearly", async (q, label) => {
            CASE WHEN e.amount <> 0 AND b.target_value <> 0 THEN ROUND(e.amount / b.target_value, 2) ELSE 0 END AS pct
     FROM efp_sales e
     CROSS JOIN budget b`;
-  return run(sql, params(q, f, { tz: process.env.V2_TIMEZONE || "UTC" }), label);
+  return run(sql, params(q, f, { tz: process.env.TIMEZONE || "UTC" }), label);
 });
 
 get(faCategoryMonthly, "/", "forecast-accuracy-category-monthly", async (q, label) => {

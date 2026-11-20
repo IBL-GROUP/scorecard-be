@@ -2,9 +2,9 @@
 //   /filters, /filters/branches   routes.filters.js
 //   /total-sku                    routes.total.sku.js
 // None of them reads the dashboard filters (GAP-005), as in 1.0.
-import { run } from "../bq.js";
-import { T } from "../sources.js";
-import { get, newRouter } from "../http.js";
+import { run } from "../lib/bq.js";
+import { T } from "../lib/sources.js";
+import { get, newRouter } from "../lib/http.js";
 
 export const filterLists = newRouter();
 export const totalSku = newRouter();

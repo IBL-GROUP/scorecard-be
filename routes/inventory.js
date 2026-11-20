@@ -14,10 +14,10 @@
 // Known gaps are kept as they are today: GAP-001 (inventory-days and
 // service-measure hard-code April 2026), GAP-005 (above-below ignores
 // classification).
-import { run } from "../bq.js";
-import { T } from "../sources.js";
-import { coverDaysParam, filters, get, inList, newRouter, str } from "../http.js";
-import { BUSLINES, DAYS_IN_MONTH, DSMH_CODE, END_MONTH, NEXT_MONTH, SID_CODE, SIL, SLOC, latestStockDate, thresholdsInForce, vic } from "../sql.js";
+import { run } from "../lib/bq.js";
+import { T } from "../lib/sources.js";
+import { coverDaysParam, filters, get, inList, newRouter, str } from "../lib/http.js";
+import { BUSLINES, DAYS_IN_MONTH, DSMH_CODE, END_MONTH, NEXT_MONTH, SID_CODE, SIL, SLOC, latestStockDate, thresholdsInForce, vic } from "../lib/sql.js";
 
 export const coverDays = newRouter();
 export const inventoryDays = newRouter();
