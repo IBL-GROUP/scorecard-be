@@ -9,7 +9,7 @@ import { env, bqSettingsFile } from "./lib/env.js";
 import { run, bqInfo, clearCache } from "./lib/bq.js";
 import { T, notReady, dataset } from "./lib/sources.js";
 import { authenticate } from "./middleware/auth.js";
-import { salesSummary, faMonthly, faYearly, faCategoryMonthly, faCategoryYearly, iblVsTscl } from "./routes/sales.js";
+import { salesSummary, faMonthly, faYearly, faCategoryMonthly, faCategoryYearly, faDaily, iblVsTscl } from "./routes/sales.js";
 import { coverDays, inventoryDays, aboveBelow, serviceMeasure, tgtVsActual } from "./routes/inventory.js";
 import { wip, rpm, dispatchVsOrder, rdStatus } from "./routes/operations.js";
 import { filterLists, totalSku } from "./routes/filters.js";
@@ -27,6 +27,7 @@ const ROUTE_GROUPS = [
   ["/cover-days", coverDays],
   ["/forecast-accuracy-monthly", faMonthly],
   ["/forecast-accuracy-yearly", faYearly],
+  ["/forecast-accuracy-daily", faDaily],
   ["/forecast-accuracy-category-monthly", faCategoryMonthly],
   ["/forecast-accuracy-category-yearly", faCategoryYearly],
   ["/inventory-days", inventoryDays],

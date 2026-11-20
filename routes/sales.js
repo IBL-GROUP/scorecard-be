@@ -2,6 +2,7 @@
 //   /sales-summary                       routes.sales.summary.js
 //   /forecast-accuracy-monthly(/daysgone) routes.forcast.accuracy.monthly.js
 //   /forecast-accuracy-yearly            routes.forcast.accuracy.yearly.js
+//   /forecast-accuracy-daily             new in 2.0: the same sales, day by day
 //   /forecast-accuracy-category-monthly  routes.forcast.accuracy.category.monthly.js
 //   /forecast-accuracy-category-yearly   routes.forcast.accuracy.category.yearly.js
 //   /ibl-vs-tscl                         routes.ibl.vs.tscl.js
@@ -20,6 +21,7 @@ export const faMonthly = newRouter();
 export const faYearly = newRouter();
 export const faCategoryMonthly = newRouter();
 export const faCategoryYearly = newRouter();
+export const faDaily = newRouter();
 export const iblVsTscl = newRouter();
 
 const params = (q, f, extra = {}) => ({ startDate: str(q.startDate), endDate: str(q.endDate), ...f, ...extra });
@@ -172,6 +174,50 @@ get(faYearly, "/", "forecast-accuracy-yearly", async (q, label) => {
     FROM efp_sales e
     CROSS JOIN budget b`;
   return run(sql, params(q, f, { tz: process.env.TIMEZONE || "UTC" }), label);
+});
+
+/**
+ * /forecast-accuracy-daily (Supply Chain Pulse 2.0): the window's sales day by
+ * day, for the expanded Budget Accuracy TSCL and Forecast Accuracy IBL cards.
+ *   amount_tp  — as /forecast-accuracy-monthly (the IBL card): amount, with its
+ *                NOT NULL rules.
+ *   amount_efp — as /forecast-accuracy-yearly (the TSCL card): sold_qty × the
+ *                latest "SALE E.F.P" price before endDate.
+ */
+get(faDaily, "/", "forecast-accuracy-daily", async (q, label) => {
+  const f = filters(q);
+  const sql = `
+    WITH day_sales AS (
+      SELECT a.billing_date AS day, a.item_code,
+             SUM(IF(a.classification IS NOT NULL AND a.branch_id IS NOT NULL AND a.item_code IS NOT NULL, a.amount, 0)) AS tp,
+             SUM(a.sold_qty) AS qty
+      FROM ${T("vw_mv_tscl_data_")} a
+      WHERE a.billing_date BETWEEN ${START} AND ${END}
+        ${inList(f.classification, "a.classification", "classification")}
+        ${inList(f.sku, "a.item_code", "sku")}
+        ${inList(f.branch, "a.branch_id", "branch")}
+      GROUP BY a.billing_date, a.item_code
+    ),
+    efp_latest AS (
+      SELECT item_code, efp_price FROM (
+        SELECT b.item_code, b.sales_efp AS efp_price,
+               ROW_NUMBER() OVER (PARTITION BY b.item_code ORDER BY b.first_date DESC) AS rn
+        FROM ${T("tscl_efp")} b
+        WHERE DATE(b.first_date) < ${END}
+          ${inList(f.classification, "b.classification", "classification")}
+          ${inList(f.sku, "b.item_code", "sku")}
+          ${inList(f.branch, "b.branch_id", "branch")}
+      ) t
+      WHERE rn = 1
+    )
+    SELECT FORMAT_DATE('%Y-%m-%d', s.day) AS day,
+           SUM(s.tp) AS amount_tp,
+           SUM(s.qty * COALESCE(e.efp_price, 0)) AS amount_efp
+    FROM day_sales s
+    LEFT OUTER JOIN efp_latest e ON e.item_code = s.item_code
+    GROUP BY s.day
+    ORDER BY s.day`;
+  return run(sql, params(q, f), label);
 });
 
 get(faCategoryMonthly, "/", "forecast-accuracy-category-monthly", async (q, label) => {
