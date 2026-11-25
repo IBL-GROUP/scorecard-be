@@ -7,7 +7,7 @@
 // Known gaps are kept: GAP-005 (dispatch ignores branch; wip and rpm take dates
 // only), GAP-006 (rd-status ignores `date`).
 import { run } from "../lib/bq.js";
-import { T, requireSources } from "../lib/sources.js";
+import { BUSLINES, T, requireSources } from "../lib/sources.js";
 import { filters, get, inList, newRouter, str } from "../lib/http.js";
 
 /**
@@ -165,7 +165,7 @@ get(rdStatus, "/", "rd-status", async (q, label) => {
       LEFT OUTER JOIN ${T("mv_scoreboard_hub_mapping")} hm
         ON CAST(hm.storage_location_code AS STRING) = pss.SUBINVENTORY_CODE
       WHERE pss.data_flag = 'SD'
-        AND sid.busline_id IN ('P07', 'P08', 'P12', 'P01', 'P35')
+        AND sid.busline_id IN ${BUSLINES}
       GROUP BY pss.data_flag, pss.ibl_distributor_code, pss.distributor_desc, hm.hub_branch_code, hm.hub_branch_desc, pss.dated
     )
     SELECT

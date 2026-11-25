@@ -39,7 +39,7 @@ const branchGeo = () => `
     FROM ${T("zone_region")} z
     JOIN (SELECT DISTINCT hub_branch_code, hub_branch_desc FROM ${T("mv_scoreboard_hub_mapping")}) hb
       ON CAST(z.branch_code AS STRING) = TRIM(CAST(hb.hub_branch_code AS STRING))
-    WHERE CAST(FORMAT_DATE('%Y%m%d', CURRENT_DATE()) AS INT64) BETWEEN z.from_date AND z.end_date
+    WHERE CAST(FORMAT_DATE('%Y%m%d', CURRENT_DATE()) AS INT64) BETWEEN SAFE_CAST(z.from_date AS INT64) AND SAFE_CAST(z.end_date AS INT64)
     GROUP BY 1`;
 
 get(filterLists, "/branches", "filters/branches", async (_q, label) => {
