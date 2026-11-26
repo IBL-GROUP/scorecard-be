@@ -15,7 +15,7 @@
 // service-measure hard-code April 2026), GAP-005 (above-below ignores
 // classification).
 import { run } from "../lib/bq.js";
-import { T } from "../lib/sources.js";
+import { T, TC } from "../lib/sources.js";
 import { coverDaysParam, filters, get, inList, newRouter, str } from "../lib/http.js";
 import { BUSLINES, DAYS_IN_MONTH, DSMH_CODE, END_MONTH, NEXT_MONTH, SID_CODE, SIL, SLOC, latestStockDate, thresholdsInForce, vic } from "../lib/sql.js";
 
@@ -103,7 +103,7 @@ const branchItemTargets = (f) => `
              ${SID_CODE} AS mapping_code,
              MAX(sid.matnr_desc) AS PRD,
              SUM(t01.target_value) AS trg_value
-      FROM ${T("mv_tscl_spl_targets")} t01
+      FROM ${TC("mv_tscl_spl_targets")} t01
       LEFT OUTER JOIN ${T("vw_items_class")} t03 ON ${vic("t03")} = CAST(t01.item_code AS STRING)
       LEFT OUTER JOIN ${T("sap_items_detail")} sid ON sid.matnr = t01.item_code
       WHERE DATE(t01.target_date) >= ${END_MONTH}
@@ -123,7 +123,7 @@ const detailCols = `
 /** Targets for endDate's month, joined to vw_items_class on item_code. */
 const monthTargets = (f, select, groupBy = "") => `
       SELECT ${select}
-      FROM ${T("mv_tscl_spl_targets")} t01
+      FROM ${TC("mv_tscl_spl_targets")} t01
       LEFT OUTER JOIN ${T("vw_items_class")} t03 ON ${vic("t03")} = CAST(t01.item_code AS STRING)
       WHERE DATE(t01.target_date) >= ${END_MONTH}
         AND DATE(t01.target_date) < ${NEXT_MONTH}
@@ -190,9 +190,13 @@ get(coverDays, "/total", "cover-days/total", async (q, label) => {
 get(coverDays, "/benchmarks", "cover-days/benchmarks", async (q, label) => {
   const requested = String(q.endDate ?? "").trim();
   const asOf = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : new Date().toISOString().slice(0, 10);
-  const sql = `${thresholdsInForce(T("cover_days"), "cd.classification, cd.days, cd.threshold, cd.effective_date", "CAST(@asOf AS DATE)")}
+  // The dashboard's Cover Days (?coverDays) is every class's benchmark when set
+  // (user, 26 Nov 2026); the threshold stays the table's. Unset: the table's days.
+  const set = coverDaysParam(q);
+  const days = set == null ? "cd.days" : "@coverDays AS days";
+  const sql = `${thresholdsInForce(T("cover_days"), `cd.classification, ${days}, cd.threshold, cd.effective_date`, "CAST(@asOf AS DATE)")}
     ORDER BY cd.classification`;
-  const data = await run(sql, { asOf }, label);
+  const data = await run(sql, { asOf, ...(set == null ? {} : { coverDays: set }) }, label);
   return { as_of: asOf, data };
 });
 
@@ -296,7 +300,7 @@ get(aboveBelow, "/", "above-below-threshold", async (q, label) => {
     ),
     filtered_targets AS (
       SELECT ${SID_CODE} AS mapping_code, SUM(t01.target_value) AS trg_value
-      FROM ${T("mv_tscl_spl_targets")} t01
+      FROM ${TC("mv_tscl_spl_targets")} t01
       LEFT OUTER JOIN ${T("sap_items_detail")} sid ON sid.matnr = t01.item_code
       LEFT OUTER JOIN ${T("vw_items_class")} t03 ON ${vic("t03")} = ${SID_CODE}
       WHERE DATE_TRUNC(DATE(t01.target_date), MONTH) = ${END_MONTH}

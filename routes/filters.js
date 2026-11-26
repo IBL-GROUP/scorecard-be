@@ -25,21 +25,23 @@ get(filterLists, "/", "filters", async (_q, label) => {
 });
 
 /**
- * Each hub branch's zone and region (Supply Chain Pulse 2.0), the same rule as
- * Sales Pulse 2.0's HUB_GEO: vw_zone_region_data maps cities to branch codes,
- * and a branch serving cities in more than one region (Lahore, Multan,
- * Peshawar, Islamabad) takes its home region, the one whose city is the branch
- * itself. Branches are matched by name; a branch the view does not have is
+ * Each hub branch's zone, market and region (Supply Chain Pulse 2.0), as Sales Pulse
+ * 2.0 places warehouse stock (HUB_GEO). vw_zone_region_data has one row per
+ * distributor (26 Nov 2026), with its hub_name and city; these branches are
+ * IBL warehouses with no distributor, so a branch is found by hub_name, or
+ * else by city (Bahawalpur, Faisalabad, Korangi, Mingora). A hub serving more
+ * than one region (Lahore, Multan, Peshawar, Islamabad) takes its home region,
+ * the row whose city is the branch itself. A branch the view does not name is
  * zone and region 'Others'. One row per hub branch name.
  */
 const branchGeo = () => `
-    SELECT LOWER(TRIM(hb.hub_branch_desc)) AS hub_name,
-      ARRAY_AGG(STRUCT(TRIM(z.zone_description) AS zone, TRIM(z.region) AS region)
-        ORDER BY IF(LOWER(TRIM(z.city)) = LOWER(TRIM(hb.hub_branch_desc)), 0, 1), z.region LIMIT 1)[OFFSET(0)] AS home
-    FROM ${T("zone_region")} z
-    JOIN (SELECT DISTINCT hub_branch_code, hub_branch_desc FROM ${T("mv_scoreboard_hub_mapping")}) hb
-      ON CAST(z.branch_code AS STRING) = TRIM(CAST(hb.hub_branch_code AS STRING))
-    WHERE CAST(FORMAT_DATE('%Y%m%d', CURRENT_DATE()) AS INT64) BETWEEN SAFE_CAST(z.from_date AS INT64) AND SAFE_CAST(z.end_date AS INT64)
+    SELECT b.hub_name,
+      ARRAY_AGG(STRUCT(TRIM(z.zone_description) AS zone, TRIM(z.market) AS market, TRIM(z.region) AS region)
+        ORDER BY IF(LOWER(TRIM(z.city)) = b.hub_name, 0, 1), IF(LOWER(TRIM(z.hub_name)) = b.hub_name, 0, 1), z.region
+        LIMIT 1)[OFFSET(0)] AS home
+    FROM (SELECT DISTINCT LOWER(TRIM(hub_branch_desc)) AS hub_name FROM ${T("mv_scoreboard_hub_mapping")}) b
+    CROSS JOIN ${T("zone_region")} z
+    WHERE LOWER(TRIM(z.hub_name)) = b.hub_name OR LOWER(TRIM(z.city)) = b.hub_name
     GROUP BY 1`;
 
 get(filterLists, "/branches", "filters/branches", async (_q, label) => {
@@ -49,6 +51,7 @@ get(filterLists, "/branches", "filters/branches", async (_q, label) => {
     SELECT mshm.* EXCEPT (storage_location_code),
            CAST(mshm.storage_location_code AS STRING) AS storage_location_code,
            COALESCE(g.home.zone, 'Others') AS zone,
+           COALESCE(g.home.market, 'Others') AS market,
            COALESCE(g.home.region, 'Others') AS region
     FROM ${T("mv_scoreboard_hub_mapping")} mshm
     LEFT JOIN (${branchGeo()}) g ON g.hub_name = LOWER(TRIM(mshm.hub_branch_desc))
